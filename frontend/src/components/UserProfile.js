@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import './UserProfile.css';
 
@@ -20,11 +20,7 @@ function UserProfile({ onClose }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
       let headers = { 'Content-Type': 'application/json' };
@@ -58,7 +54,11 @@ function UserProfile({ onClose }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAccessTokenSilently]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   const handleChange = (field, value) => {
     setProfile(prev => ({

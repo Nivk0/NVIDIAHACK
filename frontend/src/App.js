@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import './App.css';
 import UploadComponent from './components/UploadComponent';
@@ -24,7 +24,7 @@ function App() {
   const [viewMode, setViewMode] = useState('garden'); // 'garden', 'data', 'analytics', or 'timeline'
 
   // Helper function to get auth headers
-  const getAuthHeaders = async () => {
+  const getAuthHeaders = useCallback(async () => {
     const headers = {
       'Content-Type': 'application/json',
     };
@@ -39,16 +39,9 @@ function App() {
     }
 
     return headers;
-  };
+  }, [isAuthenticated, getAccessTokenSilently]);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchMemories();
-      fetchClusters();
-    }
-  }, [isAuthenticated]);
-
-  const fetchMemories = async () => {
+  const fetchMemories = useCallback(async () => {
     try {
       console.log('Fetching memories from:', `${API_BASE}/memories`);
       const headers = await getAuthHeaders();
@@ -67,9 +60,9 @@ function App() {
       console.error('Error fetching memories:', error);
       alert(`Failed to load memories: ${error.message}. Make sure the backend server is running on port 5001.`);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const fetchClusters = async () => {
+  const fetchClusters = useCallback(async () => {
     try {
       console.log('Fetching clusters from:', `${API_BASE}/clusters`);
       const headers = await getAuthHeaders();
@@ -86,7 +79,14 @@ function App() {
       console.error('Error fetching clusters:', error);
       alert(`Failed to load clusters: ${error.message}. Make sure the backend server is running on port 5001.`);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMemories();
+      fetchClusters();
+    }
+  }, [isAuthenticated, fetchMemories, fetchClusters]);
 
   const handleUploadComplete = () => {
     // Fetch memories and clusters after upload completes
