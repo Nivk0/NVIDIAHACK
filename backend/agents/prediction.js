@@ -31,6 +31,8 @@ class PredictionAgent {
       results.push({
         ...item,
         age,
+        // Use Nemotron-generated summary if available, otherwise keep original summary
+        summary: analysis.summary || item.summary,
         relevance1Month: analysis.relevance1Month,
         relevance1Year: analysis.relevance1Year,
         attachment: analysis.attachment,
@@ -100,7 +102,7 @@ class PredictionAgent {
 
   predictAction(relevance1Month, relevance1Year, age) {
     if (relevance1Year < 0.2 && age > 24) {
-      return 'forget';
+      return 'low_relevance';
     } else if (relevance1Month < 0.4 || relevance1Year < 0.3) {
       return 'compress';
     } else {

@@ -49,6 +49,8 @@ async function analyzeExistingMemories() {
           // Update memory with Nemotron analysis
           const updatedMemory = {
             ...memory,
+            // Use Nemotron-generated summary if available
+            summary: analysis.summary || memory.summary,
             relevance1Month: analysis.relevance1Month,
             relevance1Year: analysis.relevance1Year,
             attachment: analysis.attachment,

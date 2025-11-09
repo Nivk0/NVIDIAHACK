@@ -1,8 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import './MemoryDetailPanel.css';
 
 function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
+  const searchQuery = memory._searchQuery || memory.searchQuery;
+
+  // Reset showFullSummary when memory changes
+  useEffect(() => {
+    setShowFullSummary(false);
+  }, [memory?.id]);
 
   const relevance1Month = memory.relevance1Month ?? memory.nemotronAnalysis?.relevance1Month ?? 0.5;
   const relevance1Year = memory.relevance1Year ?? memory.nemotronAnalysis?.relevance1Year ?? 0.5;
@@ -11,10 +17,25 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   const analysisConfidence = memory.nemotronConfidence ?? memory.nemotronAnalysis?.confidence;
   const wasNemotronUsed = memory.nemotronAnalyzed ?? memory.nemotronAnalysis?.nemotronAnalyzed;
 
+  // Get sentiment score and normalize to 0-1 range (if it's -1 to 1, convert it)
+  const rawSentimentScore = memory.sentiment?.score ?? memory.nemotronAnalysis?.sentimentScore ?? 0;
+  const sentimentScore = useMemo(() => {
+    // If score is already 0-1, use it as is
+    if (rawSentimentScore >= 0 && rawSentimentScore <= 1) {
+      return rawSentimentScore;
+    }
+    // If score is -1 to 1, normalize to 0-1
+    if (rawSentimentScore >= -1 && rawSentimentScore <= 1) {
+      return (rawSentimentScore + 1) / 2;
+    }
+    // Default to 0.5 if unknown
+    return 0.5;
+  }, [rawSentimentScore]);
+
   const getFutureRelevance = () => {
     if (timeHorizon === 0) return relevance1Month;
     if (timeHorizon >= 12) return relevance1Year;
-    
+
     const monthRatio = timeHorizon / 12;
     return relevance1Month + (relevance1Year - relevance1Month) * monthRatio;
   };
@@ -25,8 +46,10 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
         return '#2ecc71';
       case 'compress':
         return '#f39c12';
+      case 'low_relevance':
+        return '#d68910'; // Darker orange
       case 'forget':
-        return '#e74c3c';
+        return '#d68910'; // Support old "forget" for backward compatibility
       case 'delete':
         return '#c0392b';
       default:
@@ -34,9 +57,6 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
     }
   };
 
-  const handleActionChange = (action) => {
-    onUpdate(memory.id, action);
-  };
 
   const handleDelete = () => {
     if (window.confirm('Are you sure you want to delete this memory? It will be moved to oblivion (summary retained).')) {
@@ -53,7 +73,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:5001';
       return `${apiBase}${memory.imageUrl}`;
     }
-    
+
     // Then check fileUrl
     if (!memory.fileUrl) return null;
     if (/^https?:\/\//i.test(memory.fileUrl)) {
@@ -72,9 +92,9 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       if (imageSrc) {
         return (
           <div className="memory-image-container">
-            <img 
-              src={imageSrc} 
-              alt={memory.summary || 'Memory image'} 
+            <img
+              src={imageSrc}
+              alt={memory.summary || 'Memory image'}
               className="memory-image"
               onError={(e) => {
                 e.target.style.display = 'none';
@@ -125,9 +145,9 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
             </div>
           ) : isImage ? (
             <div className="memory-image-container">
-              <img 
-                src={resolvedFileUrl} 
-                alt={memory.summary || 'Memory image'} 
+              <img
+                src={resolvedFileUrl}
+                alt={memory.summary || 'Memory image'}
                 className="memory-image"
                 onError={(e) => {
                   e.target.style.display = 'none';
@@ -182,14 +202,22 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   const currentAction = overrideAction || predictedAction;
   const futureRelevance = getFutureRelevance();
 
-  const formattedSummary = useMemo(() => memory.summary || 'No summary available', [memory.summary]);
-  const fullSummaryText = useMemo(() => memory.content || formattedSummary, [memory.content, formattedSummary]);
+  // Use Nemotron-generated summary if available, otherwise use the memory's summary
+  const formattedSummary = useMemo(() => {
+    return memory.nemotronAnalysis?.summary ||
+      memory.nemotronSummary ||
+      memory.summary ||
+      'No summary available';
+  }, [memory.nemotronAnalysis?.summary, memory.nemotronSummary, memory.summary]);
+
+  const fullSummaryText = useMemo(() => formattedSummary, [formattedSummary]);
+
   const collapsedSummary = useMemo(() => {
-    if (!formattedSummary) return 'No summary available';
-    return formattedSummary.length > 240
-      ? `${formattedSummary.substring(0, 240).trim()}…`
-      : formattedSummary;
-  }, [formattedSummary]);
+    if (!fullSummaryText || fullSummaryText === 'No summary available') return 'No summary available';
+    return fullSummaryText.length > 240
+      ? `${fullSummaryText.substring(0, 240).trim()}…`
+      : fullSummaryText;
+  }, [fullSummaryText]);
 
   const metadataEntries = useMemo(() => {
     if (!memory.metadata) return [];
@@ -271,26 +299,48 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
     <div className="memory-detail-panel">
       <div className="panel-header">
         <h2>Memory Details</h2>
-        <button className="close-button" onClick={onClose}>×</button>
+        <button className="close-button" onClick={onClose} title="Close" aria-label="Close panel">
+          ✕
+        </button>
       </div>
 
       <div className="panel-content">
         <div className="detail-section">
           <h3>Summary</h3>
-          <pre className={`memory-summary ${showFullSummary ? 'expanded' : ''}`}>
+          <pre
+            className={`memory-summary ${showFullSummary ? 'expanded' : ''}`}
+            style={{
+              maxHeight: showFullSummary ? 'none' : '140px',
+              overflow: showFullSummary ? 'visible' : 'hidden',
+              display: 'block',
+              wordWrap: 'break-word',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+              whiteSpace: 'pre-wrap'
+            }}
+          >
             {showFullSummary ? fullSummaryText : collapsedSummary}
           </pre>
           {fullSummaryText && fullSummaryText.length > 240 && (
-            <button
-              className="summary-toggle"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowFullSummary(prev => !prev);
-              }}
-            >
-              {showFullSummary ? 'Show less' : 'Show more'}
-            </button>
+            <div style={{ marginTop: '8px' }}>
+              <button
+                type="button"
+                className="summary-toggle"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.nativeEvent?.stopImmediatePropagation?.();
+                  setShowFullSummary(prev => !prev);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                style={{ pointerEvents: 'auto' }}
+              >
+                {showFullSummary ? 'Show less' : 'Show more'}
+              </button>
+            </div>
           )}
         </div>
 
@@ -359,7 +409,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
             <div className="score-item">
               <span className="score-label">Sentiment</span>
               <div className="sentiment-badge" data-sentiment={memory.sentiment?.label || 'neutral'}>
-                {memory.sentiment?.label || 'neutral'} ({memory.sentiment?.score?.toFixed(2) || 0})
+                {memory.sentiment?.label || 'neutral'} ({sentimentScore.toFixed(2)})
               </div>
             </div>
             <div className="score-item">
@@ -384,85 +434,114 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
         <div className="detail-section">
           <h3>Prediction Explanation</h3>
           <div className="explanation">
-            {parsedExplanation?.text && parsedExplanation.text.trim() && parsedExplanation.text !== 'No explanation provided' ? (
-              <p className="analysis-explanation">
-                {parsedExplanation.text}
-              </p>
-            ) : (
-              <p>
-                This memory is predicted to retain <strong>{(futureRelevance * 100).toFixed(0)}% relevance</strong> {horizonPhrase}.
-                Based on this analysis, the recommended action is:{' '}
-                <strong style={{ color: getActionColor(predictedAction) }}>
-                  {predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1)}
-                </strong>.
-              </p>
-            )}
-            {parsedExplanation?.extras && Object.keys(parsedExplanation.extras).length > 0 && (
-              <div className="analysis-extras">
-                {Object.entries(parsedExplanation.extras).map(([label, value]) => (
-                  <div key={label} className="analysis-extra-row">
-                    <span className="analysis-extra-label">{label}</span>
-                    <span className="analysis-extra-value">{value}</span>
+            {(() => {
+              // Get the explanation text
+              let explanationText = parsedExplanation?.text;
+
+              // If we have a good explanation from Nemotron, use it
+              if (explanationText &&
+                explanationText.trim() &&
+                explanationText !== 'No explanation provided' &&
+                explanationText !== 'Analyzed by Nemotron' &&
+                explanationText.length > 20) {
+                return (
+                  <div>
+                    <p className="analysis-explanation">
+                      {explanationText}
+                    </p>
+                    <div className="explanation-factors">
+                      <p className="factors-header">Key Factors:</p>
+                      <ul>
+                        <li>
+                          <strong>Relevance:</strong> {((relevance1Month * 100).toFixed(0))}% in 1 month, {((relevance1Year * 100).toFixed(0))}% in 1 year
+                        </li>
+                        <li>
+                          <strong>Attachment:</strong> {((attachmentScore * 100).toFixed(0))}%
+                        </li>
+                        <li>
+                          <strong>Age:</strong> {memory.age || 0} months old
+                        </li>
+                        <li>
+                          <strong>Type:</strong> {memory.type || 'unknown'}
+                        </li>
+                        {memory.sentiment?.label && (
+                          <li>
+                            <strong>Sentiment:</strong> {memory.sentiment.label}
+                          </li>
+                        )}
+                      </ul>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              }
+
+              // Fallback: Generate a clear explanation based on the data
+              const actionName = predictedAction === 'low_relevance' ? 'Low Future Relevance' :
+                predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1);
+
+              let reasonParts = [];
+
+              if (relevance1Year < 0.3) {
+                reasonParts.push(`low long-term relevance (${(relevance1Year * 100).toFixed(0)}%)`);
+              }
+              if (memory.age > 24) {
+                reasonParts.push(`age of ${memory.age} months`);
+              }
+              if (attachmentScore < 0.3) {
+                reasonParts.push(`low emotional attachment (${(attachmentScore * 100).toFixed(0)}%)`);
+              }
+              if (memory.type === 'image' && memory.metadata?.imageQuality === 'blurry') {
+                reasonParts.push('low image quality');
+              }
+
+              const reasonText = reasonParts.length > 0
+                ? ` due to ${reasonParts.join(', ')}`
+                : ` based on relevance scores and content analysis`;
+
+              return (
+                <div>
+                  <p className="analysis-explanation">
+                    This memory is recommended for <strong style={{ color: getActionColor(predictedAction) }}>{actionName}</strong>
+                    {reasonText}.
+                    {relevance1Year >= 0.5 && (
+                      <> It maintains {((relevance1Year * 100).toFixed(0))}% relevance over the next year, suggesting it may still be useful.</>
+                    )}
+                    {attachmentScore >= 0.5 && (
+                      <> The emotional attachment score of {((attachmentScore * 100).toFixed(0))}% indicates some personal value.</>
+                    )}
+                  </p>
+                  <div className="explanation-factors">
+                    <p className="factors-header">Analysis Details:</p>
+                    <ul>
+                      <li>
+                        <strong>1-Month Relevance:</strong> {((relevance1Month * 100).toFixed(0))}%
+                      </li>
+                      <li>
+                        <strong>1-Year Relevance:</strong> {((relevance1Year * 100).toFixed(0))}%
+                      </li>
+                      <li>
+                        <strong>Attachment Score:</strong> {((attachmentScore * 100).toFixed(0))}%
+                      </li>
+                      <li>
+                        <strong>Memory Age:</strong> {memory.age || 0} months
+                      </li>
+                      <li>
+                        <strong>Content Type:</strong> {memory.type || 'unknown'}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              );
+            })()}
             <p className="analysis-source">
-              Source: {wasNemotronUsed ? 'NVIDIA Nemotron AI analysis' : 'Heuristic fallback'}
-              {memory.nemotronUpdatedAt ? ` • Last updated ${new Date(memory.nemotronUpdatedAt).toLocaleString()}` : ''}
+              {wasNemotronUsed ? '✓ Analyzed by NVIDIA Nemotron AI' : '⚠ Using heuristic fallback analysis'}
+              {memory.nemotronUpdatedAt && (
+                <span className="update-time"> • Updated {new Date(memory.nemotronUpdatedAt).toLocaleDateString()}</span>
+              )}
             </p>
-            {memory.age > 24 && (
-              <p className="explanation-note">
-                ⚠️ This memory is over 2 years old and may be a candidate for compression or deletion.
-              </p>
-            )}
-            {memory.relevance1Year < 0.3 && (
-              <p className="explanation-note">
-                ⚠️ Low predicted relevance in 1 year suggests this memory may not be needed long-term.
-              </p>
-            )}
           </div>
         </div>
 
-        <div className="detail-section">
-          <h3>Override Action</h3>
-          <div className="action-selector">
-            <button
-              className={`action-button ${overrideAction === 'keep' ? 'active' : ''}`}
-              style={{ borderColor: getActionColor('keep') }}
-              onClick={() => handleActionChange('keep')}
-            >
-              Keep
-            </button>
-            <button
-              className={`action-button ${overrideAction === 'compress' ? 'active' : ''}`}
-              style={{ borderColor: getActionColor('compress') }}
-              onClick={() => handleActionChange('compress')}
-            >
-              Compress
-            </button>
-            <button
-              className={`action-button ${overrideAction === 'forget' ? 'active' : ''}`}
-              style={{ borderColor: getActionColor('forget') }}
-              onClick={() => handleActionChange('forget')}
-            >
-              Forget
-            </button>
-            <button
-              className={`action-button ${overrideAction === 'delete' ? 'active' : ''}`}
-              style={{ borderColor: getActionColor('delete') }}
-              onClick={() => handleActionChange('delete')}
-            >
-              Delete
-            </button>
-          </div>
-          {memory.userOverridden && (
-            <p className="override-note">✓ You've overridden the AI prediction</p>
-          )}
-          {!overrideAction && (
-            <p className="override-note">Current: {predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1)} (AI predicted)</p>
-          )}
-        </div>
 
         <div className="detail-section">
           <button className="delete-button" onClick={handleDelete}>

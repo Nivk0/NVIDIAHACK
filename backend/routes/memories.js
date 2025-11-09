@@ -88,7 +88,7 @@ router.get('/:id', async (req, res) => {
 // Update memory (override action)
 router.put('/:id', async (req, res) => {
   try {
-    const { action } = req.body; // 'keep', 'compress', 'forget'
+    const { action } = req.body; // 'keep', 'compress', 'low_relevance', 'delete'
     let files = [];
     try {
       files = await fs.readdir(MEMORIES_DIR);

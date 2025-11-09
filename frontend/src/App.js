@@ -4,6 +4,9 @@ import UploadComponent from './components/UploadComponent';
 import MemoryGarden from './components/MemoryGarden';
 import MemoryDetailPanel from './components/MemoryDetailPanel';
 import DataViewer from './components/DataViewer';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import UserProfile from './components/UserProfile';
+import AIMemorySearch from './components/AIMemorySearch';
 
 const API_BASE = 'http://localhost:5001/api';
 
@@ -12,8 +15,10 @@ function App() {
   const [clusters, setClusters] = useState([]);
   const [selectedMemory, setSelectedMemory] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [timeHorizon, setTimeHorizon] = useState(0); // 0 = now, 12 = 1 year
-  const [viewMode, setViewMode] = useState('garden'); // 'garden' or 'data'
+  const [viewMode, setViewMode] = useState('garden'); // 'garden', 'data', 'analytics', or 'timeline'
 
   useEffect(() => {
     fetchMemories();
@@ -141,8 +146,36 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Memory Garden</h1>
-        <p>AI-Powered Memory Management</p>
+        <div className="header-content">
+          <div>
+            <h1>Memory Garden <span style={{ color: '#76B900', fontWeight: '800' }}>AI</span></h1>
+            <p>Powered by <span style={{ color: '#76B900', fontWeight: '700' }}>NVIDIA Nemotron</span> • Intelligent Memory Management</p>
+          </div>
+          <div className="header-buttons">
+            <button
+              className="header-action-button"
+              onClick={() => {
+                setShowSearch(true);
+                setShowProfile(false);
+                setShowUpload(false);
+              }}
+              title="AI Memory Search (RAG-powered)"
+            >
+              🔍 Search
+            </button>
+            <button
+              className="header-action-button"
+              onClick={() => {
+                setShowProfile(true);
+                setShowSearch(false);
+                setShowUpload(false);
+              }}
+              title="Edit User Profile"
+            >
+              ⚙️ Profile
+            </button>
+          </div>
+        </div>
       </header>
 
       <div className="view-switcher">
@@ -165,6 +198,15 @@ function App() {
           📊 Data Viewer
         </button>
         <button
+          className={`view-button ${viewMode === 'analytics' && !showUpload ? 'active' : ''}`}
+          onClick={() => {
+            setShowUpload(false);
+            setViewMode('analytics');
+          }}
+        >
+          📈 Analytics
+        </button>
+        <button
           className={`upload-button-header ${showUpload ? 'active' : ''}`}
           onClick={() => setShowUpload(true)}
         >
@@ -179,38 +221,29 @@ function App() {
 
           {viewMode === 'garden' ? (
             <div className={`garden-container ${selectedMemory ? 'with-panel' : ''}`}>
-              <div className="time-slider-container">
-                <label>Time Horizon: {timeHorizon === 0 ? 'Now' : `${timeHorizon} months`}</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="12"
-                  value={timeHorizon}
-                  onChange={(e) => setTimeHorizon(Number(e.target.value))}
-                  className="time-slider"
-                />
-                <div className="slider-labels">
-                  <span>Now</span>
-                  <span>1 Year</span>
-                </div>
-              </div>
-
               <MemoryGarden
                 memories={memories}
                 clusters={clusters}
                 timeHorizon={timeHorizon}
                 onMemoryClick={handleMemoryClick}
+                onDeleteCluster={handleDeleteCluster}
+                onRemoveMemoryFromCluster={handleRemoveMemoryFromCluster}
               />
             </div>
-          ) : (
+          ) : viewMode === 'data' ? (
             <div className={`data-viewer-container ${selectedMemory ? 'with-panel' : ''}`}>
               <DataViewer
                 memories={memories}
                 clusters={clusters}
                 onMemoryClick={handleMemoryClick}
-                onDeleteCluster={handleDeleteCluster}
-                onRemoveMemoryFromCluster={handleRemoveMemoryFromCluster}
                 onMemoryActionChange={handleMemoryUpdate}
+              />
+            </div>
+          ) : (
+            <div className={`analytics-container ${selectedMemory ? 'with-panel' : ''}`}>
+              <AnalyticsDashboard
+                memories={memories}
+                clusters={clusters}
               />
             </div>
           )}
@@ -222,9 +255,28 @@ function App() {
               onUpdate={handleMemoryUpdate}
               onDelete={handleDeleteMemory}
               onClose={() => setSelectedMemory(null)}
+              onMemoryRefresh={async (updatedMemory) => {
+                setSelectedMemory(updatedMemory);
+                await fetchMemories();
+              }}
             />
           )}
         </div>
+      )}
+
+      {showProfile && (
+        <UserProfile onClose={() => setShowProfile(false)} />
+      )}
+
+      {showSearch && (
+        <AIMemorySearch
+          memories={memories}
+          onMemoryClick={(memory) => {
+            setSelectedMemory(memory);
+            setShowSearch(false);
+          }}
+          onClose={() => setShowSearch(false)}
+        />
       )}
     </div>
   );

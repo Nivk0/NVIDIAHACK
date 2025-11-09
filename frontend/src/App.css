@@ -9,7 +9,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f6fa;
+  background: #0f0f0f;
 }
 
 .App {
@@ -17,11 +17,49 @@ body {
 }
 
 .App-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+  border-bottom: 3px solid #76B900;
   color: white;
   padding: 30px 20px;
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.3);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-content > div:first-child {
   text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex: 1;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.header-action-button {
+  background: rgba(118, 185, 0, 0.1);
+  border: 2px solid #76B900;
+  color: #76B900;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.header-action-button:hover {
+  background: #76B900;
+  border-color: #76B900;
+  color: #000000;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.4);
 }
 
 .App-header h1 {
@@ -62,11 +100,26 @@ body {
   margin-right: 400px;
 }
 
+.analytics-container {
+  position: relative;
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: margin-right 0.3s;
+}
+
+.analytics-container.with-panel {
+  margin-right: 400px;
+}
+
 .time-slider-container {
-  background: white;
+  background: #1a1a1a;
+  border: 1px solid #333;
   padding: 20px;
   border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   margin-bottom: 24px;
 }
 
@@ -74,14 +127,14 @@ body {
   display: block;
   margin-bottom: 12px;
   font-weight: 600;
-  color: #2c3e50;
+  color: #76B900;
 }
 
 .time-slider {
   width: 100%;
   height: 8px;
   border-radius: 4px;
-  background: #ecf0f1;
+  background: #333;
   outline: none;
   -webkit-appearance: none;
 }
@@ -92,17 +145,19 @@ body {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #667eea;
+  background: #76B900;
   cursor: pointer;
+  box-shadow: 0 0 8px rgba(118, 185, 0, 0.6);
 }
 
 .time-slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #667eea;
+  background: #76B900;
   cursor: pointer;
   border: none;
+  box-shadow: 0 0 8px rgba(118, 185, 0, 0.6);
 }
 
 .slider-labels {
@@ -116,74 +171,80 @@ body {
 .upload-button {
   margin-top: 24px;
   padding: 12px 24px;
-  background: #3498db;
-  color: white;
+  background: #76B900;
+  color: #000000;
   border: none;
   border-radius: 8px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.3s;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.3);
 }
 
 .upload-button:hover {
-  background: #2980b9;
+  background: #8cd500;
+  box-shadow: 0 6px 16px rgba(118, 185, 0, 0.5);
+  transform: translateY(-2px);
 }
 
 .view-switcher {
   display: flex;
   gap: 12px;
   padding: 20px;
-  background: white;
-  border-bottom: 2px solid #ecf0f1;
+  background: #1a1a1a;
+  border-bottom: 2px solid #333;
   justify-content: flex-start;
   align-items: center;
 }
 
 .view-button {
   padding: 10px 20px;
-  border: 2px solid #ecf0f1;
-  background: white;
+  border: 2px solid #333;
+  background: #1a1a1a;
   border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
-  color: #7f8c8d;
+  color: #999;
   transition: all 0.3s;
 }
 
 .view-button:hover {
-  border-color: #3498db;
-  color: #3498db;
+  border-color: #76B900;
+  color: #76B900;
 }
 
 .view-button.active {
-  background: #3498db;
-  border-color: #3498db;
-  color: white;
+  background: #76B900;
+  border-color: #76B900;
+  color: #000000;
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.4);
 }
 
 .upload-button-header {
   padding: 10px 20px;
-  border: 2px solid #3498db;
-  background: white;
+  border: 2px solid #76B900;
+  background: #1a1a1a;
   border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
-  color: #3498db;
+  color: #76B900;
   transition: all 0.3s;
 }
 
 .upload-button-header.active {
-  background: #3498db;
-  border-color: #3498db;
-  color: white;
+  background: #76B900;
+  border-color: #76B900;
+  color: #000000;
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.4);
 }
 
 .upload-button-header:hover {
-  background: #3498db;
-  color: white;
+  background: #76B900;
+  color: #000000;
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.4);
 }
 
 code {

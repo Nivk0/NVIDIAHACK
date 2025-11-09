@@ -10,6 +10,8 @@ const fs = require('fs').promises;
 const uploadRoutes = require('./routes/upload');
 const memoryRoutes = require('./routes/memories');
 const clusterRoutes = require('./routes/clusters');
+const profileRoutes = require('./routes/profile');
+const searchRoutes = require('./routes/search');
 const { ensureNemotronAnalysis } = require('./services/nemotron-initializer');
 
 const app = express();
@@ -38,6 +40,8 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/upload', uploadRoutes);
 app.use('/api/memories', memoryRoutes);
 app.use('/api/clusters', clusterRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
             }
             
             // Ensure action is set - use predictedAction or default to 'keep'
-            const validActions = ['keep', 'compress', 'forget', 'delete'];
+            const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
             if (!normalized.action) {
               // Try to infer from cluster name or default to 'keep'
               const name = (normalized.name || '').toLowerCase();
@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
 
     // Merge clusters with the same action into single clusters
     const mergedClusters = {};
-    const validActions = ['keep', 'compress', 'forget', 'delete'];
+    const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
     
     // First, load all memories to redistribute them intelligently
     let allMemories = [];
@@ -98,13 +98,18 @@ router.get('/', async (req, res) => {
     const totalMemories = sortedMemories.length;
     const keepThreshold = Math.floor(totalMemories * 0.40); // Top 40% -> Keep
     const compressThreshold = Math.floor(totalMemories * 0.70); // Next 30% -> Compress
-    const forgetThreshold = Math.floor(totalMemories * 0.90); // Next 20% -> Forget
+    const lowRelevanceThreshold = Math.floor(totalMemories * 0.90); // Next 20% -> Low Future Relevance
     // Bottom 10% -> Delete
     
     const memoryActionMap = {};
     sortedMemories.forEach((memory, index) => {
       // Only respect user overrides, not predicted actions (redistribute everything else)
       let action = memory.overrideAction; // Only use user overrides
+      
+      // Normalize old "forget" to "low_relevance"
+      if (action && action.toLowerCase() === 'forget') {
+        action = 'low_relevance';
+      }
       
       // If no user override, assign based on percentile position
       if (!action || !validActions.includes(action.toLowerCase())) {
@@ -113,8 +118,8 @@ router.get('/', async (req, res) => {
           action = 'keep';
         } else if (index < compressThreshold) {
           action = 'compress';
-        } else if (index < forgetThreshold) {
-          action = 'forget';
+        } else if (index < lowRelevanceThreshold) {
+          action = 'low_relevance';
         } else {
           action = 'delete';
         }
@@ -144,9 +149,15 @@ router.get('/', async (req, res) => {
         
         // Initialize cluster if needed
         if (!mergedClusters[finalAction]) {
+          const actionNames = {
+            'keep': 'Keep',
+            'compress': 'Compress',
+            'low_relevance': 'Low Future Relevance',
+            'delete': 'Delete'
+          };
           mergedClusters[finalAction] = {
             id: `merged-${finalAction}-${Date.now()}`,
-            name: finalAction.charAt(0).toUpperCase() + finalAction.slice(1),
+            name: actionNames[finalAction] || finalAction.charAt(0).toUpperCase() + finalAction.slice(1),
             type: 'action',
             action: finalAction,
             memoryIds: [],
@@ -175,9 +186,15 @@ router.get('/', async (req, res) => {
         
         // Initialize cluster if needed
         if (!mergedClusters[finalAction]) {
+          const actionNames = {
+            'keep': 'Keep',
+            'compress': 'Compress',
+            'low_relevance': 'Low Future Relevance',
+            'delete': 'Delete'
+          };
           mergedClusters[finalAction] = {
             id: `merged-${finalAction}-${Date.now()}`,
-            name: finalAction.charAt(0).toUpperCase() + finalAction.slice(1),
+            name: actionNames[finalAction] || finalAction.charAt(0).toUpperCase() + finalAction.slice(1),
             type: 'action',
             action: finalAction,
             memoryIds: [],
@@ -196,11 +213,17 @@ router.get('/', async (req, res) => {
     });
 
     // Ensure all 4 action clusters exist (even if empty)
+    const actionNames = {
+      'keep': 'Keep',
+      'compress': 'Compress',
+      'low_relevance': 'Low Future Relevance',
+      'delete': 'Delete'
+    };
     validActions.forEach(action => {
       if (!mergedClusters[action]) {
         mergedClusters[action] = {
           id: `empty-${action}-${Date.now()}`, // Generate a unique ID
-          name: action.charAt(0).toUpperCase() + action.slice(1),
+          name: actionNames[action] || action.charAt(0).toUpperCase() + action.slice(1),
           type: 'action',
           action: action,
           memoryIds: [],

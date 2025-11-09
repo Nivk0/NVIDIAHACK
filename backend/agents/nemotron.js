@@ -1,4 +1,6 @@
 const https = require('https');
+const fs = require('fs').promises;
+const path = require('path');
 
 class NemotronAgent {
   constructor() {
@@ -16,11 +18,76 @@ class NemotronAgent {
     this.model = process.env.NEMOTRON_MODEL || 'meta/llama-3.1-70b-instruct';
   }
 
+  async generateSummary(memory) {
+    try {
+      const age = typeof memory.age === 'number' ? memory.age : this.calculateAge(memory.createdAt);
+      const content = memory.content || '';
+      const type = memory.type || 'unknown';
+      const title = memory.title || memory.summary || '';
+      
+      // Create a focused prompt just for summary generation
+      const summaryPrompt = `You are an AI assistant that creates concise, informative summaries of documents and files.
+
+Your task: Analyze the content below and create a clear 2-3 sentence summary that describes what this document/memory actually is.
+
+CRITICAL INSTRUCTIONS:
+- DO NOT copy the first lines verbatim
+- DO NOT quote the content directly
+- Analyze the ENTIRE content and synthesize a summary
+- Write in your own words as a description, not an excerpt
+
+Content Type: ${type}
+${title ? `Title/Subject: ${title}` : ''}
+Content Length: ${content.length} characters
+
+Content to analyze:
+${content.substring(0, 3000)}
+
+Now create a 2-3 sentence summary that:
+1. Describes what this document/memory is
+2. Explains its main purpose or content
+3. Highlights key information
+
+Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
+
+      const response = await this.callNemotronAPI(summaryPrompt);
+      const summaryText = response.choices?.[0]?.message?.content || '';
+      
+      // Clean up the summary (remove quotes, JSON markers, etc.)
+      let cleanedSummary = summaryText.trim();
+      // Remove JSON markers if present
+      cleanedSummary = cleanedSummary.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+      // Remove quotes if the entire response is quoted
+      if ((cleanedSummary.startsWith('"') && cleanedSummary.endsWith('"')) ||
+          (cleanedSummary.startsWith("'") && cleanedSummary.endsWith("'"))) {
+        cleanedSummary = cleanedSummary.slice(1, -1);
+      }
+      // Remove "summary:" prefix if present
+      cleanedSummary = cleanedSummary.replace(/^summary\s*:?\s*/i, '');
+      
+      return cleanedSummary.trim() || null;
+    } catch (error) {
+      console.error(`Error generating summary for memory ${memory.id}:`, error);
+      return null;
+    }
+  }
+
   async analyzeMemory(memory) {
     try {
-      const prompt = this.buildPrompt(memory);
+      // First generate a proper summary
+      const generatedSummary = await this.generateSummary(memory);
+      
+      // Then do the full analysis with the generated summary
+      const prompt = await this.buildPrompt(memory);
       const response = await this.callNemotronAPI(prompt);
-      return this.parseResponse(response, memory);
+      const analysis = this.parseResponse(response, memory);
+      
+      // Use the generated summary if available, otherwise use what Nemotron returned
+      if (generatedSummary && generatedSummary.length > 20) {
+        analysis.summary = generatedSummary;
+      }
+      
+      return analysis;
     } catch (error) {
       console.error(`Error analyzing memory ${memory.id}:`, error);
       // Fallback to basic analysis if API fails
@@ -28,7 +95,36 @@ class NemotronAgent {
     }
   }
 
-  buildPrompt(memory) {
+  async getUserProfile() {
+    try {
+      const profilePath = path.join(__dirname, '../data/user-profile.json');
+      const content = await fs.readFile(profilePath, 'utf8');
+      return JSON.parse(content);
+    } catch (error) {
+      // Profile doesn't exist, return null
+      return null;
+    }
+  }
+
+  formatUserProfile(profile) {
+    if (!profile) return '';
+    
+    const parts = [];
+    if (profile.age) parts.push(`Age: ${profile.age}`);
+    if (profile.lifeStage) parts.push(`Life Stage: ${profile.lifeStage}`);
+    if (profile.isStudent) parts.push('Currently a student');
+    if (profile.educationLevel) parts.push(`Education: ${profile.educationLevel}`);
+    if (profile.occupation) parts.push(`Occupation: ${profile.occupation}`);
+    if (profile.location) parts.push(`Location: ${profile.location}`);
+    if (profile.interests && profile.interests.length > 0) {
+      parts.push(`Interests: ${profile.interests.join(', ')}`);
+    }
+    if (profile.notes) parts.push(`Additional context: ${profile.notes}`);
+    
+    return parts.length > 0 ? parts.join('\n') : '';
+  }
+
+  async buildPrompt(memory) {
     const age = typeof memory.age === 'number' ? memory.age : this.calculateAge(memory.createdAt);
     const content = memory.content || memory.summary || '';
     const type = memory.type || 'unknown';
@@ -38,7 +134,15 @@ class NemotronAgent {
     const attachments = this.describeAttachments(memory);
     const contextInsights = memory.contextSummary || this.contextualInsights(memory, age);
     
-    return `You are an AI memory curator using NVIDIA Nemotron. Decide whether to KEEP, COMPRESS, or FORGET the memory using the provided context.
+    // Load user profile for personalized analysis
+    const userProfile = await this.getUserProfile();
+    const profileContext = this.formatUserProfile(userProfile);
+    
+    return `You are an AI memory curator using NVIDIA Nemotron. Your task is to:
+1. Generate a clear, concise summary of what this document/memory actually is
+2. Analyze its relevance and recommend an action
+
+${profileContext ? `\n=== USER CONTEXT ===\n${profileContext}\nUse this information to personalize relevance assessment. For example:\n- If user is a student, academic/work documents may be more relevant\n- If user has specific interests, related memories may have higher relevance\n- Consider life stage when assessing long-term value\n` : ''}
 
 Memory Stats:
 - Type: ${type}
@@ -51,24 +155,28 @@ Memory Stats:
 - Quality assessment: ${quality}
 ${attachments ? `- Related files: ${attachments}` : ''}
 
-Content Preview:
-${content.substring(0, 1200)}
+Content Preview (analyze this to generate a summary - DO NOT just copy the first lines):
+${content.substring(0, 2000)}
 
 Contextual Insights:
 ${contextInsights}
 
 Decision Principles:
-- KEEP: Significant life events, irreplaceable childhood photos, high emotional attachment, or recently referenced documents.
-- COMPRESS: Moderately important items that should be retained in smaller form (e.g., old but occasionally referenced research PDFs).
-- FORGET: Blurry/low-quality images, outdated documents, redundant work emails, or items with low future relevance and attachment.
+- KEEP: Significant life events, irreplaceable childhood photos, high emotional attachment, recently referenced documents, or items highly relevant to user's current context/interests.
+- COMPRESS: Moderately important items that should be retained in smaller form (e.g., old but occasionally referenced research PDFs, documents related to past but not current interests).
+- LOW_RELEVANCE: Blurry/low-quality images, outdated documents, redundant work emails, or items with low future relevance and attachment that don't align with user's current context.
+- DELETE: Very low relevance items that are outdated, redundant, or completely unrelated to user's current life stage, interests, or needs.
+
+CRITICAL: Generate a TRUE SUMMARY, not an excerpt. Analyze the content and create a concise description.
 
 Analyze this memory and respond in JSON:
 {
+  "summary": "A clear, concise 2-3 sentence summary that describes what this document/memory actually is. DO NOT copy the first lines verbatim. Instead: (1) For images: describe what's visible, who/what is in it, setting, mood. (2) For documents: summarize the main topic, purpose, key findings/conclusions. (3) For emails: summarize sender, recipient, subject, main message/purpose. (4) For text files: summarize main ideas, purpose, key points. Write as a summary, not a quote.",
   "relevance1Month": number 0-1,
   "relevance1Year": number 0-1,
   "attachment": number 0-1,
-  "action": "keep|compress|forget",
-  "explanation": "1-2 sentence rationale referencing age/quality/importance",
+  "action": "keep|compress|low_relevance|delete",
+  "explanation": "A clear, human-readable explanation (2-3 sentences) explaining why this action was chosen. Reference specific factors like: the document's age, content type, relevance scores, emotional attachment, quality, and how it relates to the user's current life stage/interests. Be specific and actionable.",
   "sentiment": "positive|negative|neutral|mixed",
   "sentimentScore": number -1 to 1,
   "confidence": number 0-1
@@ -172,11 +280,21 @@ Analyze this memory and respond in JSON:
       const attachment = this.toNumber(analysis.attachment, 0.5);
       const sentimentScore = this.toNumber(analysis.sentimentScore, 0);
 
+      let predictedAction = (analysis.action || '').toLowerCase() || 'keep';
+      // Normalize old "forget" to "low_relevance"
+      if (predictedAction === 'forget') {
+        predictedAction = 'low_relevance';
+      }
+
+      // Extract summary - use Nemotron's summary if available
+      const nemotronSummary = analysis.summary || null;
+
       return {
         relevance1Month,
         relevance1Year,
         attachment,
-        predictedAction: (analysis.action || '').toLowerCase() || 'keep',
+        predictedAction,
+        summary: nemotronSummary, // Include Nemotron-generated summary
         sentiment: {
           label: (analysis.sentiment || 'neutral').toLowerCase(),
           score: sentimentScore
@@ -205,9 +323,14 @@ Analyze this memory and respond in JSON:
     };
 
     // Try to extract action
-    const actionMatch = content.toLowerCase().match(/(keep|compress|forget)/);
+    const actionMatch = content.toLowerCase().match(/(keep|compress|low_relevance|forget|delete)/);
     if (actionMatch) {
-      result.action = actionMatch[1];
+      let action = actionMatch[1];
+      // Normalize old "forget" to "low_relevance"
+      if (action === 'forget') {
+        action = 'low_relevance';
+      }
+      result.action = action;
     }
 
     // Try to extract scores
@@ -244,7 +367,7 @@ Analyze this memory and respond in JSON:
 
     // Determine action
     if (relevance1Year < 0.2 && age > 24) {
-      action = 'forget';
+      action = 'low_relevance';
     } else if (relevance1Month < 0.4 || relevance1Year < 0.3) {
       action = 'compress';
     } else {
@@ -253,14 +376,14 @@ Analyze this memory and respond in JSON:
 
     if (memory.metadata?.imageQuality === 'blurry' || memory.metadata?.flags?.includes('blurry')) {
       relevance1Year = Math.min(relevance1Year, 0.15);
-      action = 'forget';
+      action = 'low_relevance';
       explanation = 'Marked as blurry/low quality';
     }
 
     if ((memory.tags || []).some(tag => ['childhood', 'family', 'wedding'].includes(tag))) {
       attachment = Math.max(attachment, 0.85);
       relevance1Year = Math.max(relevance1Year, 0.6);
-      action = action === 'forget' ? 'compress' : 'keep';
+      action = action === 'low_relevance' ? 'compress' : 'keep';
       explanation = 'Family/childhood memory prioritized for retention';
     }
 

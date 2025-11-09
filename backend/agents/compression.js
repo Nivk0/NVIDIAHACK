@@ -23,7 +23,7 @@ class CompressionAgent {
   }
 
   clusterMemories(memories) {
-    // Cluster by action - 4 clusters: keep, compress, forget, delete
+    // Cluster by action - 4 clusters: keep, compress, low_relevance, delete
     return this.clusterByAction(memories);
   }
 
@@ -32,17 +32,23 @@ class CompressionAgent {
     const actionGroups = {
       'keep': [],
       'compress': [],
-      'forget': [],
+      'low_relevance': [],
       'delete': []
     };
 
     // Group memories by their action (overrideAction, predictedAction, or default)
     memories.forEach(memory => {
-      const action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
-      // Normalize action names
+      let action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
+      // Normalize action names - convert old "forget" to "low_relevance"
       const normalizedAction = action.toLowerCase();
-      if (actionGroups[normalizedAction]) {
-        actionGroups[normalizedAction].push(memory.id);
+      if (normalizedAction === 'forget') {
+        action = 'low_relevance';
+      }
+      if (actionGroups[action]) {
+        actionGroups[action].push(memory.id);
+      } else if (normalizedAction === 'forget') {
+        // Handle old "forget" action
+        actionGroups.low_relevance.push(memory.id);
       } else {
         // Default to keep if action is unknown
         actionGroups.keep.push(memory.id);
@@ -54,7 +60,7 @@ class CompressionAgent {
     const actionNames = {
       'keep': 'Keep',
       'compress': 'Compress',
-      'forget': 'Forget',
+      'low_relevance': 'Low Future Relevance',
       'delete': 'Delete'
     };
 
@@ -119,7 +125,7 @@ class CompressionAgent {
         name: `${ageGroup} memories (${this.getAgeRange(ageGroup)})`,
         type: 'age',
         memoryIds,
-        action: ageGroup === 'old' ? 'forget' : ageGroup === 'medium' ? 'compress' : 'keep',
+          action: ageGroup === 'old' ? 'low_relevance' : ageGroup === 'medium' ? 'compress' : 'keep',
         size: memoryIds.length,
         totalSize: memories.filter(m => memoryIds.includes(m.id))
           .reduce((sum, m) => sum + (m.size || 0), 0)
@@ -151,8 +157,8 @@ class CompressionAgent {
           name: clusterName.replace('_', ' '),
           type: 'content',
           memoryIds: matchingIds,
-          action: clusterName === 'blurry_images' ? 'forget' : 
-                  clusterName === 'graduation' && this.areOld(memories.filter(m => matchingIds.includes(m.id))) ? 'forget' : 'keep',
+          action: clusterName === 'blurry_images' ? 'low_relevance' : 
+                  clusterName === 'graduation' && this.areOld(memories.filter(m => matchingIds.includes(m.id))) ? 'low_relevance' : 'keep',
           size: matchingIds.length,
           totalSize: memories.filter(m => matchingIds.includes(m.id))
             .reduce((sum, m) => sum + (m.size || 0), 0)
@@ -203,7 +209,7 @@ class CompressionAgent {
     const avgRelevance = memories.reduce((sum, m) => sum + (m.relevance1Year || 0.5), 0) / memories.length;
     const avgAge = memories.reduce((sum, m) => sum + (m.age || 0), 0) / memories.length;
     
-    if (avgRelevance < 0.2 && avgAge > 24) return 'forget';
+    if (avgRelevance < 0.2 && avgAge > 24) return 'low_relevance';
     if (avgRelevance < 0.4 || avgAge > 12) return 'compress';
     return 'keep';
   }

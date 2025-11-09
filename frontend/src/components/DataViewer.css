@@ -1,7 +1,8 @@
 .data-viewer {
-  background: white;
+  background: #1a1a1a;
+  border: 1px solid #333;
   border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   padding: 24px;
   margin: 0;
 }
@@ -17,7 +18,7 @@
 
 .viewer-header h2 {
   margin: 0;
-  color: #2c3e50;
+  color: #76B900;
   font-size: 24px;
 }
 
@@ -28,25 +29,25 @@
 
 .view-mode-tabs button {
   padding: 8px 16px;
-  border: 2px solid #ecf0f1;
-  background: white;
+  border: 2px solid #333;
+  background: #1a1a1a;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  color: #7f8c8d;
+  color: #999;
   transition: all 0.3s;
 }
 
 .view-mode-tabs button:hover {
-  border-color: #3498db;
-  color: #3498db;
+  border-color: #76B900;
+  color: #76B900;
 }
 
 .view-mode-tabs button.active {
-  background: #3498db;
-  border-color: #3498db;
-  color: white;
+  background: #76B900;
+  border-color: #76B900;
+  color: #000000;
 }
 
 .filters {
@@ -55,7 +56,8 @@
   margin-bottom: 20px;
   flex-wrap: wrap;
   padding: 16px;
-  background: #f8f9fa;
+  background: #242424;
+  border: 1px solid #333;
   border-radius: 8px;
 }
 
@@ -68,17 +70,26 @@
 .filter-group label {
   font-size: 12px;
   font-weight: 600;
-  color: #7f8c8d;
+  color: #76B900;
   text-transform: uppercase;
 }
 
 .filter-group select,
 .search-input {
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid #333;
+  background: #0f0f0f;
+  color: #e0e0e0;
   border-radius: 6px;
   font-size: 14px;
   min-width: 150px;
+}
+
+.filter-group select:focus,
+.search-input:focus {
+  outline: none;
+  border-color: #76B900;
+  box-shadow: 0 0 8px rgba(118, 185, 0, 0.3);
 }
 
 .search-input {
@@ -96,7 +107,7 @@
 }
 
 .memories-table thead {
-  background: #f8f9fa;
+  background: #0f0f0f;
   position: sticky;
   top: 0;
 }
@@ -105,14 +116,15 @@
   padding: 12px;
   text-align: left;
   font-weight: 600;
-  color: #2c3e50;
-  border-bottom: 2px solid #ddd;
+  color: #76B900;
+  border-bottom: 2px solid #333;
   white-space: nowrap;
 }
 
 .memories-table td {
   padding: 12px;
-  border-bottom: 1px solid #ecf0f1;
+  border-bottom: 1px solid #333;
+  color: #e0e0e0;
 }
 
 .memory-row {
@@ -121,7 +133,8 @@
 }
 
 .memory-row:hover {
-  background: #f8f9fa;
+  background: #242424;
+  box-shadow: inset 0 0 0 1px rgba(118, 185, 0, 0.3);
 }
 
 .memory-id {
