@@ -3,7 +3,6 @@ import './MemoryDetailPanel.css';
 
 function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
-  const searchQuery = memory._searchQuery || memory.searchQuery;
 
   // Reset showFullSummary when memory changes
   useEffect(() => {
@@ -38,23 +37,6 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
 
     const monthRatio = timeHorizon / 12;
     return relevance1Month + (relevance1Year - relevance1Month) * monthRatio;
-  };
-
-  const getActionColor = (action) => {
-    switch (action) {
-      case 'keep':
-        return '#2ecc71';
-      case 'compress':
-        return '#f39c12';
-      case 'low_relevance':
-        return '#d68910'; // Darker orange
-      case 'forget':
-        return '#d68910'; // Support old "forget" for backward compatibility
-      case 'delete':
-        return '#c0392b';
-      default:
-        return '#95a5a6';
-    }
   };
 
 
@@ -197,9 +179,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
     );
   };
 
-  const overrideAction = memory.overrideAction;
   const predictedAction = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
-  const currentAction = overrideAction || predictedAction;
   const futureRelevance = getFutureRelevance();
 
   // Use Nemotron-generated summary if available, otherwise use the memory's summary
@@ -322,13 +302,6 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       extras: null
     };
   }, [analysisExplanation, predictedAction, relevance1Month, relevance1Year, attachmentScore, memory.age, memory.type, memory.metadata]);
-
-  const horizonPhrase = useMemo(() => {
-    if (timeHorizon === 0) return 'right now';
-    if (timeHorizon === 1) return 'in 1 month';
-    if (timeHorizon === 12) return 'in 12 months';
-    return `in ${timeHorizon} months`;
-  }, [timeHorizon]);
 
   return (
     <div className="memory-detail-panel">

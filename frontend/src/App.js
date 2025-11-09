@@ -17,7 +17,7 @@ function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [timeHorizon, setTimeHorizon] = useState(0); // 0 = now, 12 = 1 year
+  const [timeHorizon] = useState(0); // 0 = now, 12 = 1 year
   const [viewMode, setViewMode] = useState('garden'); // 'garden', 'data', 'analytics', or 'timeline'
 
   useEffect(() => {

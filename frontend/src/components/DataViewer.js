@@ -19,17 +19,6 @@ function DataViewer({ memories, clusters, onMemoryClick, onMemoryActionChange })
     }
   };
 
-  const getActionDisplayName = (action) => {
-    switch (action) {
-      case 'keep': return 'Keep';
-      case 'compress': return 'Compress';
-      case 'low_relevance': return 'Low Future Relevance';
-      case 'forget': return 'Low Future Relevance'; // Support old "forget" for backward compatibility
-      case 'delete': return 'Delete';
-      default: return action;
-    }
-  };
-
   const getSentimentColor = (sentiment) => {
     if (!sentiment) return '#95a5a6';
     if (sentiment.label === 'positive') return '#2ecc71';

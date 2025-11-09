@@ -6,7 +6,6 @@ const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/ap
 function UploadComponent({ onComplete }) {
   const [files, setFiles] = useState([]);
   const [textData, setTextData] = useState('');
-  const [jobId, setJobId] = useState(null);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
   const [status, setStatus] = useState('idle'); // idle, uploading, processing, completed
@@ -99,7 +98,6 @@ function UploadComponent({ onComplete }) {
       });
 
       const data = await response.json();
-      setJobId(data.jobId);
       setStatus('processing');
 
       // Poll for progress

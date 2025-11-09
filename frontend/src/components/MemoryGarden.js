@@ -41,41 +41,6 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const getMemoryAction = (memory) => {
-    // First check for user override
-    if (memory.overrideAction) {
-      let action = memory.overrideAction.toLowerCase();
-      // Normalize old "forget" to "low_relevance"
-      if (action === 'forget') {
-        return 'low_relevance';
-      }
-      return action;
-    }
-    
-    // Then check which cluster this memory belongs to
-    const cluster = clusters.find(c => {
-      const memoryIds = c.memoryIds || c.memories || [];
-      return memoryIds.includes(memory.id);
-    });
-    
-    if (cluster && cluster.action) {
-      let action = cluster.action.toLowerCase();
-      // Normalize old "forget" to "low_relevance"
-      if (action === 'forget') {
-        return 'low_relevance';
-      }
-      return action;
-    }
-    
-    // Fallback to predicted action or default
-    let action = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
-    // Normalize old "forget" to "low_relevance"
-    if (action && action.toLowerCase() === 'forget') {
-      return 'low_relevance';
-    }
-    return action;
-  };
-
   return (
     <div className="memory-garden">
       <h2>Memory Garden</h2>

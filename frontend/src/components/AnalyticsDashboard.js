@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import './AnalyticsDashboard.css';
 
 function AnalyticsDashboard({ memories, clusters }) {
   // Get the action for a memory based on which cluster it belongs to (same logic as DataViewer)
-  const getMemoryAction = (memory) => {
+  const getMemoryAction = useCallback((memory) => {
     // First check for user override
     if (memory.overrideAction) {
       let action = memory.overrideAction.toLowerCase();
@@ -36,7 +36,7 @@ function AnalyticsDashboard({ memories, clusters }) {
       return 'low_relevance';
     }
     return action;
-  };
+  }, [clusters]);
 
   const stats = useMemo(() => {
     if (!memories || memories.length === 0) {
@@ -121,7 +121,7 @@ function AnalyticsDashboard({ memories, clusters }) {
       totalStorage,
       clusterStats,
     };
-  }, [memories, clusters]);
+  }, [memories, clusters, getMemoryAction]);
 
   if (!stats) {
     return (
