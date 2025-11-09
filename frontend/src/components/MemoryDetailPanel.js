@@ -27,6 +27,8 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
         return '#f39c12';
       case 'forget':
         return '#e74c3c';
+      case 'delete':
+        return '#c0392b';
       default:
         return '#95a5a6';
     }
@@ -42,30 +44,71 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
     }
   };
 
+  const resolvedFileUrl = useMemo(() => {
+    // Check imageUrl first for images
+    if (memory.type === 'image' && memory.imageUrl) {
+      if (/^https?:\/\//i.test(memory.imageUrl)) {
+        return memory.imageUrl;
+      }
+      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:5001';
+      return `${apiBase}${memory.imageUrl}`;
+    }
+    
+    // Then check fileUrl
+    if (!memory.fileUrl) return null;
+    if (/^https?:\/\//i.test(memory.fileUrl)) {
+      return memory.fileUrl;
+    }
+    const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:5001';
+    // Ensure fileUrl starts with /
+    const filePath = memory.fileUrl.startsWith('/') ? memory.fileUrl : `/${memory.fileUrl}`;
+    return `${apiBase}${filePath}`;
+  }, [memory.fileUrl, memory.imageUrl, memory.type]);
+
   const renderPrimaryContent = () => {
-    if (memory.type === 'image' && (resolvedFileUrl || memory.imageUrl)) {
-      return (
-        <div className="memory-image-container">
-          <img 
-            src={resolvedFileUrl || memory.imageUrl} 
-            alt={memory.summary || 'Memory image'} 
-            className="memory-image"
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'block';
-            }}
-          />
-          <div className="image-error" style={{ display: 'none' }}>
-            <p>Image could not be loaded</p>
-            <p className="image-url">{memory.imageUrl}</p>
+    // Check for image first
+    if (memory.type === 'image') {
+      const imageSrc = resolvedFileUrl || memory.imageUrl;
+      if (imageSrc) {
+        return (
+          <div className="memory-image-container">
+            <img 
+              src={imageSrc} 
+              alt={memory.summary || 'Memory image'} 
+              className="memory-image"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const errorDiv = e.target.nextElementSibling;
+                if (errorDiv) errorDiv.style.display = 'block';
+              }}
+            />
+            <div className="image-error" style={{ display: 'none' }}>
+              <p>Image preview not available</p>
+              <a
+                href={imageSrc}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="memory-file-button"
+              >
+                Open Image
+              </a>
+            </div>
           </div>
+        );
+      }
+      // If image type but no URL, show message
+      return (
+        <div className="memory-file-link">
+          <p>Image preview not available. The image file may have been moved or deleted.</p>
         </div>
       );
     }
 
+    // Check for document/file
     if (resolvedFileUrl) {
       const lowerUrl = resolvedFileUrl.toLowerCase();
       const isPdf = lowerUrl.includes('.pdf');
+      const isImage = lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
 
       return (
         <div className="memory-document">
@@ -75,11 +118,30 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
                 src={`${resolvedFileUrl}#toolbar=0`}
                 title={memory.title || memory.summary || 'Document preview'}
                 className="memory-document-iframe"
+                onError={() => {
+                  // If iframe fails, show fallback
+                }}
               />
+            </div>
+          ) : isImage ? (
+            <div className="memory-image-container">
+              <img 
+                src={resolvedFileUrl} 
+                alt={memory.summary || 'Memory image'} 
+                className="memory-image"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  const errorDiv = e.target.nextElementSibling;
+                  if (errorDiv) errorDiv.style.display = 'block';
+                }}
+              />
+              <div className="image-error" style={{ display: 'none' }}>
+                <p>Image preview not available</p>
+              </div>
             </div>
           ) : (
             <div className="memory-file-link">
-              <p>A preview isn’t available. Open the full file to view it.</p>
+              <p>Preview not available for this file type. Click below to open the full file.</p>
             </div>
           )}
           <div className="memory-file-actions">
@@ -96,6 +158,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       );
     }
 
+    // Fallback to content
     if (memory.content) {
       return (
         <div className="memory-content memory-content--full">
@@ -104,21 +167,20 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       );
     }
 
-    return <p>No content available</p>;
+    return (
+      <div className="memory-file-link">
+        <p>No preview available. This memory may not have an associated file.</p>
+        {memory.summary && (
+          <p className="summary-fallback">Summary: {memory.summary}</p>
+        )}
+      </div>
+    );
   };
 
-  const currentAction = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'pending';
-  const predictedAction = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'pending';
+  const overrideAction = memory.overrideAction;
+  const predictedAction = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
+  const currentAction = overrideAction || predictedAction;
   const futureRelevance = getFutureRelevance();
-
-  const resolvedFileUrl = useMemo(() => {
-    if (!memory.fileUrl) return null;
-    if (/^https?:\/\//i.test(memory.fileUrl)) {
-      return memory.fileUrl;
-    }
-    const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:5001';
-    return `${apiBase}${memory.fileUrl}`;
-  }, [memory.fileUrl]);
 
   const formattedSummary = useMemo(() => memory.summary || 'No summary available', [memory.summary]);
   const fullSummaryText = useMemo(() => memory.content || formattedSummary, [memory.content, formattedSummary]);
@@ -218,10 +280,14 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
           <pre className={`memory-summary ${showFullSummary ? 'expanded' : ''}`}>
             {showFullSummary ? fullSummaryText : collapsedSummary}
           </pre>
-          {(fullSummaryText && fullSummaryText.length > 240) && (
+          {fullSummaryText && fullSummaryText.length > 240 && (
             <button
               className="summary-toggle"
-              onClick={() => setShowFullSummary(prev => !prev)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowFullSummary(prev => !prev);
+              }}
             >
               {showFullSummary ? 'Show less' : 'Show more'}
             </button>
@@ -318,23 +384,20 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
         <div className="detail-section">
           <h3>Prediction Explanation</h3>
           <div className="explanation">
-            <p>
-              Nemotron estimates this memory will retain <strong>{(futureRelevance * 100).toFixed(0)}% relevance</strong> {horizonPhrase}.
-              Recommended action:{' '}
-              <strong style={{ color: getActionColor(predictedAction) }}>
-                {predictedAction}
-              </strong>.
-            </p>
-            <p className="analysis-source">
-              Source: {wasNemotronUsed ? 'NVIDIA Nemotron AI analysis' : 'Heuristic fallback'}
-              {memory.nemotronUpdatedAt ? ` • Last updated ${new Date(memory.nemotronUpdatedAt).toLocaleString()}` : ''}
-            </p>
-            {parsedExplanation?.text && (
+            {parsedExplanation?.text && parsedExplanation.text.trim() && parsedExplanation.text !== 'No explanation provided' ? (
               <p className="analysis-explanation">
                 {parsedExplanation.text}
               </p>
+            ) : (
+              <p>
+                This memory is predicted to retain <strong>{(futureRelevance * 100).toFixed(0)}% relevance</strong> {horizonPhrase}.
+                Based on this analysis, the recommended action is:{' '}
+                <strong style={{ color: getActionColor(predictedAction) }}>
+                  {predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1)}
+                </strong>.
+              </p>
             )}
-            {parsedExplanation?.extras && (
+            {parsedExplanation?.extras && Object.keys(parsedExplanation.extras).length > 0 && (
               <div className="analysis-extras">
                 {Object.entries(parsedExplanation.extras).map(([label, value]) => (
                   <div key={label} className="analysis-extra-row">
@@ -344,6 +407,10 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
                 ))}
               </div>
             )}
+            <p className="analysis-source">
+              Source: {wasNemotronUsed ? 'NVIDIA Nemotron AI analysis' : 'Heuristic fallback'}
+              {memory.nemotronUpdatedAt ? ` • Last updated ${new Date(memory.nemotronUpdatedAt).toLocaleString()}` : ''}
+            </p>
             {memory.age > 24 && (
               <p className="explanation-note">
                 ⚠️ This memory is over 2 years old and may be a candidate for compression or deletion.
@@ -361,29 +428,39 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
           <h3>Override Action</h3>
           <div className="action-selector">
             <button
-              className={`action-button ${currentAction === 'keep' ? 'active' : ''}`}
+              className={`action-button ${overrideAction === 'keep' ? 'active' : ''}`}
               style={{ borderColor: getActionColor('keep') }}
               onClick={() => handleActionChange('keep')}
             >
               Keep
             </button>
             <button
-              className={`action-button ${currentAction === 'compress' ? 'active' : ''}`}
+              className={`action-button ${overrideAction === 'compress' ? 'active' : ''}`}
               style={{ borderColor: getActionColor('compress') }}
               onClick={() => handleActionChange('compress')}
             >
               Compress
             </button>
             <button
-              className={`action-button ${currentAction === 'forget' ? 'active' : ''}`}
+              className={`action-button ${overrideAction === 'forget' ? 'active' : ''}`}
               style={{ borderColor: getActionColor('forget') }}
               onClick={() => handleActionChange('forget')}
             >
               Forget
             </button>
+            <button
+              className={`action-button ${overrideAction === 'delete' ? 'active' : ''}`}
+              style={{ borderColor: getActionColor('delete') }}
+              onClick={() => handleActionChange('delete')}
+            >
+              Delete
+            </button>
           </div>
           {memory.userOverridden && (
             <p className="override-note">✓ You've overridden the AI prediction</p>
+          )}
+          {!overrideAction && (
+            <p className="override-note">Current: {predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1)} (AI predicted)</p>
           )}
         </div>
 

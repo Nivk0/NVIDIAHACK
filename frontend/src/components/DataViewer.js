@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './DataViewer.css';
 
-function DataViewer({ memories, clusters, onMemoryClick }) {
+function DataViewer({ memories, clusters, onMemoryClick, onDeleteCluster, onRemoveMemoryFromCluster, onMemoryActionChange }) {
   const [viewMode, setViewMode] = useState('memories'); // 'memories' or 'clusters'
   const [filterAction, setFilterAction] = useState('all'); // 'all', 'keep', 'compress', 'forget'
   const [filterType, setFilterType] = useState('all'); // 'all', 'document', 'image', 'email', 'text'
@@ -13,6 +13,7 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
       case 'keep': return '#2ecc71';
       case 'compress': return '#f39c12';
       case 'forget': return '#e74c3c';
+      case 'delete': return '#c0392b';
       default: return '#95a5a6';
     }
   };
@@ -24,9 +25,30 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
     return '#95a5a6';
   };
 
+  // Get the action for a memory based on which cluster it belongs to
+  const getMemoryAction = (memory) => {
+    // First check for user override
+    if (memory.overrideAction) {
+      return memory.overrideAction;
+    }
+    
+    // Then check which cluster this memory belongs to
+    const cluster = clusters.find(c => {
+      const memoryIds = c.memoryIds || c.memories || [];
+      return memoryIds.includes(memory.id);
+    });
+    
+    if (cluster && cluster.action) {
+      return cluster.action;
+    }
+    
+    // Fallback to predicted action or default
+    return memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
+  };
+
   // Filter and sort memories
   const filteredMemories = memories.filter(memory => {
-    const action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'pending';
+    const action = getMemoryAction(memory);
     const matchesAction = filterAction === 'all' || action === filterAction;
     const matchesType = filterType === 'all' || memory.type === filterType;
     const matchesSearch = !searchTerm || 
@@ -55,7 +77,12 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
 
   // Get cluster memories count
   const getClusterMemories = (cluster) => {
-    return memories.filter(m => cluster.memoryIds.includes(m.id));
+    // Support both old format (memories) and new format (memoryIds)
+    const memoryIds = cluster.memoryIds || cluster.memories || [];
+    if (!Array.isArray(memoryIds)) {
+      return [];
+    }
+    return memories.filter(m => memoryIds.includes(m.id));
   };
 
   const formatDate = (dateString) => {
@@ -83,7 +110,10 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
             className={viewMode === 'clusters' ? 'active' : ''}
             onClick={() => setViewMode('clusters')}
           >
-            Clusters ({clusters.length})
+            Clusters ({clusters.filter(c => {
+              const validActions = ['keep', 'compress', 'forget', 'delete'];
+              return c.type === 'action' || (c.action && validActions.includes(c.action.toLowerCase()));
+            }).length})
           </button>
         </div>
       </div>
@@ -111,6 +141,7 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
                 <option value="keep">Keep</option>
                 <option value="compress">Compress</option>
                 <option value="forget">Forget</option>
+                <option value="delete">Delete</option>
               </select>
             </div>
             <div className="filter-group">
@@ -163,7 +194,7 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
                   </tr>
                 ) : (
                   filteredMemories.map(memory => {
-                    const action = memory.overrideAction || memory.predictedAction || 'keep';
+                    const action = getMemoryAction(memory);
                     return (
                       <tr
                         key={memory.id}
@@ -195,13 +226,42 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
                             memory.summary || memory.content?.substring(0, 50) || 'No summary'
                           )}
                         </td>
-                        <td>
-                          <span
-                            className="action-badge"
-                            style={{ backgroundColor: getActionColor(action) }}
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <select
+                            className="action-dropdown"
+                            value={action}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const newAction = e.target.value;
+                              if (onMemoryActionChange) {
+                                onMemoryActionChange(memory.id, newAction);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            style={{
+                              backgroundColor: getActionColor(action),
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '12px',
+                              padding: '4px 28px 4px 12px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              textTransform: 'uppercase',
+                              cursor: 'pointer',
+                              appearance: 'none',
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 8px center',
+                              backgroundSize: '12px',
+                              minWidth: '100px'
+                            }}
                           >
-                            {action}
-                          </span>
+                            <option value="keep" style={{ backgroundColor: getActionColor('keep'), color: 'white' }}>Keep</option>
+                            <option value="compress" style={{ backgroundColor: getActionColor('compress'), color: 'white' }}>Compress</option>
+                            <option value="forget" style={{ backgroundColor: getActionColor('forget'), color: 'white' }}>Forget</option>
+                            <option value="delete" style={{ backgroundColor: getActionColor('delete'), color: 'white' }}>Delete</option>
+                          </select>
                         </td>
                         <td>
                           <div className="relevance-bar">
@@ -245,33 +305,67 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
 
       {viewMode === 'clusters' && (
         <div className="clusters-view">
-          <div className="clusters-grid">
-            {clusters.map(cluster => {
+          {clusters.filter(cluster => {
+            const validActions = ['keep', 'compress', 'forget', 'delete'];
+            return cluster.type === 'action' || (cluster.action && validActions.includes(cluster.action.toLowerCase()));
+          }).length === 0 ? (
+            <div className="no-clusters">
+              <p>No action-based clusters yet. Upload new data to generate clusters organized by action (Keep, Compress, Forget, Delete).</p>
+            </div>
+          ) : (
+            <div className="clusters-grid">
+              {clusters
+                .filter(cluster => {
+                  const validActions = ['keep', 'compress', 'forget', 'delete'];
+                  return cluster.type === 'action' || (cluster.action && validActions.includes(cluster.action.toLowerCase()));
+                })
+                .sort((a, b) => {
+                  // Sort by action order: keep, compress, forget, delete
+                  const order = { 'keep': 0, 'compress': 1, 'forget': 2, 'delete': 3 };
+                  return (order[a.action] ?? 99) - (order[b.action] ?? 99);
+                })
+                .map(cluster => {
               const clusterMemories = getClusterMemories(cluster);
               return (
                 <div key={cluster.id} className="cluster-card">
                   <div className="cluster-header">
-                    <h3>{cluster.name}</h3>
-                    <span
-                      className="cluster-action-badge"
-                      style={{ backgroundColor: getActionColor(cluster.action) }}
-                    >
-                      {cluster.action}
-                    </span>
+                    <h3>{cluster.action ? cluster.action.charAt(0).toUpperCase() + cluster.action.slice(1) : cluster.name}</h3>
+                    <div className="cluster-header-actions">
+                      <span
+                        className="cluster-action-badge"
+                        style={{ backgroundColor: getActionColor(cluster.action) }}
+                      >
+                        {cluster.action ? cluster.action.toUpperCase() : 'N/A'}
+                      </span>
+                      {onDeleteCluster && (
+                        <button
+                          className="delete-cluster-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteCluster(cluster.id);
+                          }}
+                          title="Delete this cluster"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="cluster-info">
                     <div className="cluster-stat">
                       <span className="stat-label">Memories:</span>
                       <span className="stat-value">{cluster.size}</span>
                     </div>
-                    <div className="cluster-stat">
-                      <span className="stat-label">Type:</span>
-                      <span className="stat-value">{cluster.type}</span>
-                    </div>
+                    {cluster.type && cluster.type !== 'action' && (
+                      <div className="cluster-stat">
+                        <span className="stat-label">Type:</span>
+                        <span className="stat-value">{cluster.type}</span>
+                      </div>
+                    )}
                     <div className="cluster-stat">
                       <span className="stat-label">Total Size:</span>
                       <span className="stat-value">
-                        {(cluster.totalSize / 1024).toFixed(2)} KB
+                        {cluster.totalSize ? (cluster.totalSize / 1024).toFixed(2) + ' KB' : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -281,33 +375,50 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
                       {clusterMemories.slice(0, 5).map(memory => (
                         <li
                           key={memory.id}
-                          onClick={() => onMemoryClick(memory)}
                           className="cluster-memory-item"
                         >
-                          {memory.type === 'image' && memory.imageUrl ? (
-                            <img 
-                              src={memory.imageUrl} 
-                              alt={memory.summary || 'Thumbnail'} 
-                              className="cluster-memory-thumbnail"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <span 
-                            className="memory-type-icon" 
-                            style={{ display: memory.type === 'image' && memory.imageUrl ? 'none' : 'flex' }}
+                          <div 
+                            className="memory-item-content"
+                            onClick={() => onMemoryClick(memory)}
                           >
-                            {memory.type?.[0]?.toUpperCase() || '?'}
-                          </span>
-                          <span className="memory-summary">
-                            {memory.summary || memory.content?.substring(0, 40) || 'No summary'}
-                          </span>
-                          <span
-                            className="memory-action-dot"
-                            style={{ backgroundColor: getActionColor(memory.overrideAction || memory.predictedAction || 'keep') }}
-                          />
+                            {memory.type === 'image' && memory.imageUrl ? (
+                              <img 
+                                src={memory.imageUrl} 
+                                alt={memory.summary || 'Thumbnail'} 
+                                className="cluster-memory-thumbnail"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <span 
+                              className="memory-type-icon" 
+                              style={{ display: memory.type === 'image' && memory.imageUrl ? 'none' : 'flex' }}
+                            >
+                              {memory.type?.[0]?.toUpperCase() || '?'}
+                            </span>
+                            <span className="memory-summary">
+                              {memory.summary || memory.content?.substring(0, 40) || 'No summary'}
+                            </span>
+                            <span
+                              className="memory-action-dot"
+                              style={{ backgroundColor: getActionColor(cluster.action || memory.overrideAction || memory.predictedAction || 'keep') }}
+                              title={cluster.action ? cluster.action.charAt(0).toUpperCase() + cluster.action.slice(1) : 'Memory action'}
+                            />
+                          </div>
+                          {onRemoveMemoryFromCluster && (
+                            <button
+                              className="remove-memory-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveMemoryFromCluster(cluster.id, memory.id);
+                              }}
+                              title="Remove from cluster"
+                            >
+                              ✕
+                            </button>
+                          )}
                         </li>
                       ))}
                       {clusterMemories.length > 5 && (
@@ -320,7 +431,8 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -23,19 +23,57 @@ class CompressionAgent {
   }
 
   clusterMemories(memories) {
+    // Cluster by action - 4 clusters: keep, compress, forget, delete
+    return this.clusterByAction(memories);
+  }
+
+  clusterByAction(memories) {
+    // 4 clusters based on action
+    const actionGroups = {
+      'keep': [],
+      'compress': [],
+      'forget': [],
+      'delete': []
+    };
+
+    // Group memories by their action (overrideAction, predictedAction, or default)
+    memories.forEach(memory => {
+      const action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
+      // Normalize action names
+      const normalizedAction = action.toLowerCase();
+      if (actionGroups[normalizedAction]) {
+        actionGroups[normalizedAction].push(memory.id);
+      } else {
+        // Default to keep if action is unknown
+        actionGroups.keep.push(memory.id);
+      }
+    });
+
+    // Create clusters for each action that has memories
     const clusters = [];
-    const processed = new Set();
-    
-    // Cluster by type and age
-    const typeClusters = this.clusterByType(memories);
-    const ageClusters = this.clusterByAge(memories);
-    const contentClusters = this.clusterByContent(memories);
-    
-    // Merge clusters
-    const allClusters = [...typeClusters, ...ageClusters, ...contentClusters];
-    
-    // Deduplicate and merge overlapping clusters
-    return this.mergeClusters(allClusters, memories);
+    const actionNames = {
+      'keep': 'Keep',
+      'compress': 'Compress',
+      'forget': 'Forget',
+      'delete': 'Delete'
+    };
+
+    Object.entries(actionGroups).forEach(([action, memoryIds]) => {
+      if (memoryIds.length > 0) {
+        clusters.push({
+          id: uuidv4(),
+          name: actionNames[action],
+          type: 'action',
+          action: action,
+          memoryIds,
+          size: memoryIds.length,
+          totalSize: memories.filter(m => memoryIds.includes(m.id))
+            .reduce((sum, m) => sum + (m.size || 0), 0)
+        });
+      }
+    });
+
+    return clusters;
   }
 
   clusterByType(memories) {

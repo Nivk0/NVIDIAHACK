@@ -199,6 +199,32 @@
   text-transform: uppercase;
 }
 
+.action-dropdown {
+  border: none;
+  border-radius: 12px;
+  padding: 4px 28px 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  appearance: none;
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+  min-width: 100px;
+  outline: none;
+}
+
+.action-dropdown:focus {
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.3);
+}
+
+.action-dropdown option {
+  background: white;
+  color: #2c3e50;
+  padding: 8px;
+}
+
 .relevance-bar {
   position: relative;
   width: 80px;
@@ -267,6 +293,9 @@
   padding: 20px;
   background: white;
   transition: all 0.3s;
+  overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .cluster-card:hover {
@@ -281,12 +310,46 @@
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #ecf0f1;
+  gap: 12px;
+  min-width: 0;
 }
 
 .cluster-header h3 {
   margin: 0;
   font-size: 18px;
   color: #2c3e50;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 200px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cluster-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.delete-cluster-btn {
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #7f8c8d;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-cluster-btn:hover {
+  background: #e74c3c;
+  border-color: #e74c3c;
+  color: white;
 }
 
 .cluster-action-badge {
@@ -297,6 +360,8 @@
   font-weight: 600;
   color: white;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cluster-info {
@@ -341,13 +406,51 @@
   gap: 8px;
   padding: 8px;
   border-radius: 6px;
-  cursor: pointer;
   transition: background 0.2s;
   margin-bottom: 4px;
 }
 
+.memory-item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  cursor: pointer;
+}
+
 .cluster-memory-item:hover {
   background: #f8f9fa;
+}
+
+.remove-memory-btn {
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #7f8c8d;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  opacity: 0;
+  margin-left: auto;
+}
+
+.cluster-memory-item:hover .remove-memory-btn {
+  opacity: 1;
+}
+
+.remove-memory-btn:hover {
+  background: #e74c3c;
+  border-color: #e74c3c;
+  color: white;
+  transform: scale(1.05);
 }
 
 .memory-type-icon {
@@ -379,6 +482,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .memory-action-dot {

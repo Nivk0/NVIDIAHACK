@@ -43,7 +43,12 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick }) {
   };
 
   const getClusterMemories = (cluster) => {
-    return memories.filter(m => cluster.memoryIds.includes(m.id));
+    // Support both old format (memories) and new format (memoryIds)
+    const memoryIds = cluster.memoryIds || cluster.memories || [];
+    if (!Array.isArray(memoryIds)) {
+      return [];
+    }
+    return memories.filter(m => memoryIds.includes(m.id));
   };
 
   return (

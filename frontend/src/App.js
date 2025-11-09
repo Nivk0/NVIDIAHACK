@@ -22,23 +22,35 @@ function App() {
 
   const fetchMemories = async () => {
     try {
+      console.log('Fetching memories from:', `${API_BASE}/memories`);
       const response = await fetch(`${API_BASE}/memories`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
+      console.log(`Loaded ${data.length} memories`);
       setMemories(data);
       // Show upload only if explicitly requested, otherwise show the views
       // Don't auto-show upload when no memories - let user see the empty states
     } catch (error) {
       console.error('Error fetching memories:', error);
+      alert(`Failed to load memories: ${error.message}. Make sure the backend server is running on port 5001.`);
     }
   };
 
   const fetchClusters = async () => {
     try {
+      console.log('Fetching clusters from:', `${API_BASE}/clusters`);
       const response = await fetch(`${API_BASE}/clusters`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
+      console.log(`Loaded ${data.length} clusters`);
       setClusters(data);
     } catch (error) {
       console.error('Error fetching clusters:', error);
+      alert(`Failed to load clusters: ${error.message}. Make sure the backend server is running on port 5001.`);
     }
   };
 
@@ -65,7 +77,9 @@ function App() {
         body: JSON.stringify({ action }),
       });
       if (response.ok) {
-        fetchMemories();
+        // Refresh both memories and clusters since action change affects clusters
+        await fetchMemories();
+        await fetchClusters();
         if (selectedMemory && selectedMemory.id === memoryId) {
           const updated = await response.json();
           setSelectedMemory(updated);
@@ -73,6 +87,7 @@ function App() {
       }
     } catch (error) {
       console.error('Error updating memory:', error);
+      alert('Failed to update memory action: ' + error.message);
     }
   };
 
@@ -90,6 +105,39 @@ function App() {
     }
   };
 
+  const handleDeleteCluster = async (clusterId) => {
+    if (!window.confirm('Are you sure you want to delete this cluster? This will not delete the memories, only the cluster grouping.')) {
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/clusters/${clusterId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchClusters();
+        fetchMemories(); // Refresh to update cluster references
+      }
+    } catch (error) {
+      console.error('Error deleting cluster:', error);
+      alert('Failed to delete cluster: ' + error.message);
+    }
+  };
+
+  const handleRemoveMemoryFromCluster = async (clusterId, memoryId) => {
+    try {
+      const response = await fetch(`${API_BASE}/clusters/${clusterId}/memories/${memoryId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchClusters();
+        fetchMemories(); // Refresh to update cluster references
+      }
+    } catch (error) {
+      console.error('Error removing memory from cluster:', error);
+      alert('Failed to remove memory from cluster: ' + error.message);
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -97,30 +145,37 @@ function App() {
         <p>AI-Powered Memory Management</p>
       </header>
 
+      <div className="view-switcher">
+        <button
+          className={`view-button ${viewMode === 'garden' && !showUpload ? 'active' : ''}`}
+          onClick={() => {
+            setShowUpload(false);
+            setViewMode('garden');
+          }}
+        >
+          🌱 Memory Garden
+        </button>
+        <button
+          className={`view-button ${viewMode === 'data' && !showUpload ? 'active' : ''}`}
+          onClick={() => {
+            setShowUpload(false);
+            setViewMode('data');
+          }}
+        >
+          📊 Data Viewer
+        </button>
+        <button
+          className={`upload-button-header ${showUpload ? 'active' : ''}`}
+          onClick={() => setShowUpload(true)}
+        >
+          + Upload Data
+        </button>
+      </div>
+
       {showUpload ? (
         <UploadComponent onComplete={handleUploadComplete} />
       ) : (
         <div className="main-container">
-          <div className="view-switcher">
-            <button
-              className={`view-button ${viewMode === 'garden' ? 'active' : ''}`}
-              onClick={() => setViewMode('garden')}
-            >
-              🌱 Memory Garden
-            </button>
-            <button
-              className={`view-button ${viewMode === 'data' ? 'active' : ''}`}
-              onClick={() => setViewMode('data')}
-            >
-              📊 Data Viewer
-            </button>
-            <button
-              className="upload-button-header"
-              onClick={() => setShowUpload(true)}
-            >
-              + Upload Data
-            </button>
-          </div>
 
           {viewMode === 'garden' ? (
             <div className={`garden-container ${selectedMemory ? 'with-panel' : ''}`}>
@@ -153,6 +208,9 @@ function App() {
                 memories={memories}
                 clusters={clusters}
                 onMemoryClick={handleMemoryClick}
+                onDeleteCluster={handleDeleteCluster}
+                onRemoveMemoryFromCluster={handleRemoveMemoryFromCluster}
+                onMemoryActionChange={handleMemoryUpdate}
               />
             </div>
           )}

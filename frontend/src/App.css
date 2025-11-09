@@ -136,7 +136,7 @@ body {
   padding: 20px;
   background: white;
   border-bottom: 2px solid #ecf0f1;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
 }
 
@@ -173,7 +173,12 @@ body {
   font-weight: 600;
   color: #3498db;
   transition: all 0.3s;
-  margin-left: auto;
+}
+
+.upload-button-header.active {
+  background: #3498db;
+  border-color: #3498db;
+  color: white;
 }
 
 .upload-button-header:hover {
