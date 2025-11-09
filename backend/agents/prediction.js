@@ -21,9 +21,11 @@ class PredictionAgent {
     
     for (const item of scannedData) {
       const age = this.calculateAge(item.createdAt);
+      const contextSummary = this.buildContextSummary(item, age);
       const analysis = await this.nemotron.analyzeMemory({
         ...item,
-        age
+        age,
+        contextSummary
       });
       
       results.push({
@@ -31,9 +33,18 @@ class PredictionAgent {
         age,
         relevance1Month: analysis.relevance1Month,
         relevance1Year: analysis.relevance1Year,
+        attachment: analysis.attachment,
         predictedAction: analysis.predictedAction,
-        nemotronAnalysis: analysis
+        sentiment: analysis.sentiment,
+        nemotronAnalysis: analysis,
+        nemotronExplanation: analysis.explanation,
+        nemotronConfidence: analysis.confidence,
+        nemotronAnalyzed: analysis.nemotronAnalyzed,
+        nemotronUpdatedAt: analysis.nemotronUpdatedAt
       });
+
+      // Gentle rate limiting between calls
+      await new Promise(resolve => setTimeout(resolve, 250));
     }
     
     return results;
@@ -95,6 +106,64 @@ class PredictionAgent {
     } else {
       return 'keep';
     }
+  }
+
+  buildContextSummary(item, age) {
+    const parts = [];
+    parts.push(`Age: ${age} months`);
+    parts.push(`Type: ${item.type || 'unknown'}`);
+    if (item.title) {
+      parts.push(`Title: ${item.title}`);
+    }
+    if (item.summary) {
+      parts.push(`Summary: ${item.summary}`);
+    }
+    if (item.content) {
+      const excerpt = item.content.substring(0, 280).replace(/\s+/g, ' ');
+      if (excerpt.length > 0) {
+        parts.push(`Excerpt: ${excerpt}${item.content.length > 280 ? '...' : ''}`);
+      }
+    }
+    if (item.metadata?.imageQuality) {
+      parts.push(`Image quality: ${item.metadata.imageQuality}`);
+    }
+    if (item.metadata?.qualityHint) {
+      parts.push(`Quality hint: ${item.metadata.qualityHint}`);
+    }
+    if (item.metadata?.width && item.metadata?.height) {
+      parts.push(`Dimensions: ${item.metadata.width}x${item.metadata.height}`);
+    }
+    if (item.metadata?.pageCount) {
+      parts.push(`Pages: ${item.metadata.pageCount}`);
+    }
+    if (item.metadata?.columns) {
+      parts.push(`Columns: ${item.metadata.columns}`);
+    }
+    if (item.metadata?.rows) {
+      parts.push(`Rows: ${item.metadata.rows}`);
+    }
+    if (item.metadata?.topic) {
+      parts.push(`Topic: ${item.metadata.topic}`);
+    }
+    if (Array.isArray(item.tags) && item.tags.length > 0) {
+      parts.push(`Tags: ${item.tags.join(', ')}`);
+    }
+    if (item.metadata?.sentimentHint) {
+      parts.push(`Sentiment hint: ${item.metadata.sentimentHint}`);
+    }
+    if (item.metadata?.importance) {
+      parts.push(`Importance level: ${item.metadata.importance}`);
+    }
+    if (item.metadata?.flags?.includes('blurry')) {
+      parts.push('Flag: blurry');
+    }
+    if (item.metadata?.category) {
+      parts.push(`Category: ${item.metadata.category}`);
+    }
+    if (item.size) {
+      parts.push(`Size: ${item.size} bytes`);
+    }
+    return parts.join(' | ');
   }
 }
 

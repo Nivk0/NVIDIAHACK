@@ -55,7 +55,10 @@ async function analyzeExistingMemories() {
             predictedAction: analysis.predictedAction,
             sentiment: analysis.sentiment,
             nemotronAnalyzed: analysis.nemotronAnalyzed,
-            nemotronExplanation: analysis.explanation
+            nemotronExplanation: analysis.explanation,
+            nemotronConfidence: analysis.confidence,
+            nemotronUpdatedAt: analysis.nemotronUpdatedAt,
+            nemotronAnalysis: analysis
           };
 
           updatedMemories.push(updatedMemory);

@@ -29,9 +29,20 @@ function UploadComponent({ onComplete }) {
 
     try {
       const formData = new FormData();
+      const fileMetadata = [];
       files.forEach(file => {
         formData.append('files', file);
+        fileMetadata.push({
+          originalname: file.name,
+          lastModified: file.lastModified,
+          size: file.size,
+          type: file.type
+        });
       });
+
+      if (fileMetadata.length > 0) {
+        formData.append('fileMetadata', JSON.stringify(fileMetadata));
+      }
 
       if (textData.trim()) {
         const textItems = textData.split('\n\n').map((text, index) => ({

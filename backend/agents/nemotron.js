@@ -29,40 +29,49 @@ class NemotronAgent {
   }
 
   buildPrompt(memory) {
-    const age = this.calculateAge(memory.createdAt);
+    const age = typeof memory.age === 'number' ? memory.age : this.calculateAge(memory.createdAt);
     const content = memory.content || memory.summary || '';
     const type = memory.type || 'unknown';
+    const tags = Array.isArray(memory.tags) && memory.tags.length > 0 ? memory.tags.join(', ') : 'none';
+    const importance = memory.metadata?.importance || memory.metadata?.sentimentHint || memory.metadata?.topic || 'unspecified';
+    const quality = this.describeQuality(memory);
+    const attachments = this.describeAttachments(memory);
+    const contextInsights = memory.contextSummary || this.contextualInsights(memory, age);
     
-    return `You are an AI memory management assistant. Analyze the following memory and determine the best action: keep, compress, or forget.
+    return `You are an AI memory curator using NVIDIA Nemotron. Decide whether to KEEP, COMPRESS, or FORGET the memory using the provided context.
 
-Memory Details:
+Memory Stats:
 - Type: ${type}
 - Age: ${age} months old
-- Created: ${new Date(memory.createdAt).toLocaleDateString()}
-- Content: ${content.substring(0, 1000)}
-${memory.summary ? `- Summary: ${memory.summary}` : ''}
+- Created: ${memory.createdAt ? new Date(memory.createdAt).toISOString() : 'unknown'}
+- Tags: ${tags}
+- Estimated size: ${memory.size || 'unknown'} bytes
+- Source: ${memory.source || 'unknown'}
+- Importance hints: ${importance}
+- Quality assessment: ${quality}
+${attachments ? `- Related files: ${attachments}` : ''}
 
-Guidelines:
-- KEEP: Important, meaningful memories with high emotional value, recent documents needed for reference, or significant life events
-- COMPRESS: Moderately important memories that could be stored more efficiently, older but still relevant content
-- FORGET: Outdated information, irrelevant content, duplicates, or memories with no future value
+Content Preview:
+${content.substring(0, 1200)}
 
-Analyze this memory and provide:
-1. A relevance score (0.0 to 1.0) for 1 month from now
-2. A relevance score (0.0 to 1.0) for 1 year from now
-3. An attachment level (0.0 to 1.0) indicating emotional/sentimental value
-4. The recommended action: "keep", "compress", or "forget"
-5. A brief explanation (1-2 sentences)
+Contextual Insights:
+${contextInsights}
 
-Respond in JSON format:
+Decision Principles:
+- KEEP: Significant life events, irreplaceable childhood photos, high emotional attachment, or recently referenced documents.
+- COMPRESS: Moderately important items that should be retained in smaller form (e.g., old but occasionally referenced research PDFs).
+- FORGET: Blurry/low-quality images, outdated documents, redundant work emails, or items with low future relevance and attachment.
+
+Analyze this memory and respond in JSON:
 {
-  "relevance1Month": 0.0-1.0,
-  "relevance1Year": 0.0-1.0,
-  "attachment": 0.0-1.0,
+  "relevance1Month": number 0-1,
+  "relevance1Year": number 0-1,
+  "attachment": number 0-1,
   "action": "keep|compress|forget",
-  "explanation": "brief explanation",
-  "sentiment": "positive|negative|neutral",
-  "sentimentScore": -1.0 to 1.0
+  "explanation": "1-2 sentence rationale referencing age/quality/importance",
+  "sentiment": "positive|negative|neutral|mixed",
+  "sentimentScore": number -1 to 1,
+  "confidence": number 0-1
 }`;
   }
 
@@ -158,17 +167,24 @@ Respond in JSON format:
         analysis = this.parseTextResponse(content);
       }
 
+      const relevance1Month = this.toNumber(analysis.relevance1Month, 0.5);
+      const relevance1Year = this.toNumber(analysis.relevance1Year, 0.5);
+      const attachment = this.toNumber(analysis.attachment, 0.5);
+      const sentimentScore = this.toNumber(analysis.sentimentScore, 0);
+
       return {
-        relevance1Month: analysis.relevance1Month || 0.5,
-        relevance1Year: analysis.relevance1Year || 0.5,
-        attachment: analysis.attachment || 0.5,
-        predictedAction: analysis.action || 'keep',
+        relevance1Month,
+        relevance1Year,
+        attachment,
+        predictedAction: (analysis.action || '').toLowerCase() || 'keep',
         sentiment: {
-          label: analysis.sentiment || 'neutral',
-          score: analysis.sentimentScore || 0
+          label: (analysis.sentiment || 'neutral').toLowerCase(),
+          score: sentimentScore
         },
         explanation: analysis.explanation || 'Analyzed by Nemotron',
-        nemotronAnalyzed: true
+        confidence: this.toNumber(analysis.confidence, 0.6),
+        nemotronAnalyzed: true,
+        nemotronUpdatedAt: new Date().toISOString()
       };
     } catch (error) {
       console.error('Error parsing Nemotron response:', error);
@@ -212,6 +228,7 @@ Respond in JSON format:
     let relevance1Year = 0.5;
     let attachment = 0.5;
     let action = 'keep';
+    let explanation = 'Fallback analysis (Nemotron unavailable)';
 
     // Simple heuristics
     if (age > 24) {
@@ -234,14 +251,29 @@ Respond in JSON format:
       action = 'keep';
     }
 
+    if (memory.metadata?.imageQuality === 'blurry' || memory.metadata?.flags?.includes('blurry')) {
+      relevance1Year = Math.min(relevance1Year, 0.15);
+      action = 'forget';
+      explanation = 'Marked as blurry/low quality';
+    }
+
+    if ((memory.tags || []).some(tag => ['childhood', 'family', 'wedding'].includes(tag))) {
+      attachment = Math.max(attachment, 0.85);
+      relevance1Year = Math.max(relevance1Year, 0.6);
+      action = action === 'forget' ? 'compress' : 'keep';
+      explanation = 'Family/childhood memory prioritized for retention';
+    }
+
     return {
       relevance1Month,
       relevance1Year,
       attachment,
       predictedAction: action,
       sentiment: { label: 'neutral', score: 0 },
-      explanation: 'Fallback analysis (Nemotron API unavailable)',
-      nemotronAnalyzed: false
+      explanation,
+      confidence: 0.4,
+      nemotronAnalyzed: false,
+      nemotronUpdatedAt: new Date().toISOString()
     };
   }
 
@@ -250,6 +282,67 @@ Respond in JSON format:
     const created = new Date(createdAt);
     const diffTime = Math.abs(now - created);
     return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
+  }
+
+  describeQuality(memory) {
+    const metadata = memory.metadata || {};
+    if (metadata.imageQuality) {
+      return `image quality flagged as ${metadata.imageQuality}`;
+    }
+    if (metadata.qualityHint) {
+      return metadata.qualityHint;
+    }
+    if (metadata.flags?.includes('blurry')) {
+      return 'blurry/low clarity';
+    }
+    if (metadata.resolution) {
+      return `resolution ${metadata.resolution}`;
+    }
+    return 'no explicit quality notes';
+  }
+
+  describeAttachments(memory) {
+    if (memory.metadata?.attachmentSummary?.length) {
+      return memory.metadata.attachmentSummary.join(', ');
+    }
+    if (Array.isArray(memory.relatedFiles) && memory.relatedFiles.length > 0) {
+      return memory.relatedFiles.join(', ');
+    }
+    return '';
+  }
+
+  contextualInsights(memory, age) {
+    const lines = [];
+    if (memory.metadata?.imageQuality === 'blurry') {
+      lines.push('- Flagged as blurry image (candidate for deletion unless historically important).');
+    }
+    if ((memory.tags || []).includes('childhood')) {
+      lines.push('- Tagged as childhood memory (high sentimental value).');
+    }
+    if (age > 36 && memory.type === 'document') {
+      lines.push('- Old document; check if still referenced before keeping.');
+    } else if (age <= 6 && memory.type !== 'image') {
+      lines.push('- Recently created; likely still relevant.');
+    }
+    if (memory.metadata?.topic) {
+      lines.push(`- Topic focus: ${memory.metadata.topic}.`);
+    }
+    if (memory.metadata?.sentimentHint) {
+      lines.push(`- Sentiment hint from user metadata: ${memory.metadata.sentimentHint}.`);
+    }
+
+    if (lines.length === 0) {
+      lines.push('- No additional context flags.');
+    }
+
+    return lines.join('\n');
+  }
+
+  toNumber(value, fallback) {
+    if (value === null || value === undefined) return fallback;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (Number.isNaN(num)) return fallback;
+    return Math.max(0, Math.min(1, num));
   }
 
   async analyzeBatch(memories) {

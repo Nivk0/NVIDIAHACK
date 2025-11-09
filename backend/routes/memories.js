@@ -5,6 +5,15 @@ const fs = require('fs').promises;
 const router = express.Router();
 const MEMORIES_DIR = path.join(__dirname, '../data/memories');
 
+function calculateAge(createdAt) {
+  if (!createdAt) return null;
+  const now = new Date();
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  const diffTime = Math.abs(now - created);
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
+}
+
 // Get all memories
 router.get('/', async (req, res) => {
   try {
@@ -22,7 +31,10 @@ router.get('/', async (req, res) => {
       if (file.endsWith('.json')) {
         try {
           const content = await fs.readFile(path.join(MEMORIES_DIR, file), 'utf8');
-          const memories = JSON.parse(content);
+          const memories = JSON.parse(content).map(memory => ({
+            ...memory,
+            age: memory.age ?? calculateAge(memory.createdAt)
+          }));
           allMemories.push(...memories);
         } catch (fileError) {
           console.error(`Error reading memory file ${file}:`, fileError);
@@ -51,7 +63,10 @@ router.get('/:id', async (req, res) => {
       if (file.endsWith('.json')) {
         try {
           const content = await fs.readFile(path.join(MEMORIES_DIR, file), 'utf8');
-          const memories = JSON.parse(content);
+          const memories = JSON.parse(content).map(memory => ({
+            ...memory,
+            age: memory.age ?? calculateAge(memory.createdAt)
+          }));
           const memory = memories.find(m => m.id === req.params.id);
           
           if (memory) {

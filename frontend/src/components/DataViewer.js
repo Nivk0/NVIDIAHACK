@@ -26,7 +26,7 @@ function DataViewer({ memories, clusters, onMemoryClick }) {
 
   // Filter and sort memories
   const filteredMemories = memories.filter(memory => {
-    const action = memory.overrideAction || memory.predictedAction || 'keep';
+    const action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'pending';
     const matchesAction = filterAction === 'all' || action === filterAction;
     const matchesType = filterType === 'all' || memory.type === filterType;
     const matchesSearch = !searchTerm || 

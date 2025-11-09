@@ -26,7 +26,7 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick }) {
   };
 
   const getMemoryColor = (memory) => {
-    const action = memory.overrideAction || memory.predictedAction || 'keep';
+    const action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'pending';
 
     switch (action) {
       case 'keep':
@@ -35,6 +35,8 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick }) {
         return '#f39c12'; // Orange
       case 'forget':
         return '#e74c3c'; // Red
+      case 'pending':
+        return '#95a5a6';
       default:
         return '#95a5a6'; // Gray
     }

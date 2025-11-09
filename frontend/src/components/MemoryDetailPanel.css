@@ -70,6 +70,27 @@
   border-radius: 8px;
   color: #34495e;
   line-height: 1.6;
+  max-height: 140px;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+
+.memory-summary.expanded {
+  max-height: none;
+}
+
+.summary-toggle {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: #3498db;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.summary-toggle:hover {
+  text-decoration: underline;
 }
 
 .memory-content {
@@ -88,6 +109,61 @@
   font-size: 14px;
   color: #34495e;
   line-height: 1.6;
+}
+
+.memory-content--full {
+  max-height: none;
+}
+
+.memory-document {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.memory-document-frame {
+  width: 100%;
+  height: 360px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: #f8f9fa;
+}
+
+.memory-document-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+}
+
+.memory-file-link {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  color: #34495e;
+}
+
+.memory-file-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.memory-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: #3498db;
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.memory-file-button:hover {
+  background: #2c82c9;
 }
 
 .memory-image-container {
@@ -206,6 +282,75 @@
   border-radius: 8px;
   line-height: 1.6;
   color: #34495e;
+}
+
+.analysis-source {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #7f8c8d;
+}
+
+.analysis-explanation {
+  margin-top: 12px;
+  background: #ffffff;
+  border-left: 4px solid #3498db;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #2c3e50;
+}
+
+.analysis-extras {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.analysis-extra-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0f4f8;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.analysis-extra-label {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-right: 12px;
+}
+
+.analysis-extra-value {
+  color: #34495e;
+}
+
+.metadata-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.metadata-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f5f9fc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.metadata-label {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-right: 12px;
+}
+
+.metadata-value {
+  color: #34495e;
+  text-align: right;
 }
 
 .explanation-note {

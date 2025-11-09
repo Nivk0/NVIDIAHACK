@@ -20,12 +20,26 @@ router.post('/', upload.array('files', 100), async (req, res) => {
     const jobId = uuidv4();
     const files = req.files || [];
     let textData = [];
+    let clientFileMetadata = {};
     
     try {
       textData = req.body.textData ? JSON.parse(req.body.textData) : [];
     } catch (parseError) {
       console.error('Error parsing textData:', parseError);
       textData = [];
+    }
+
+    try {
+      const metadataPayload = req.body.fileMetadata ? JSON.parse(req.body.fileMetadata) : [];
+      if (Array.isArray(metadataPayload)) {
+        metadataPayload.forEach(meta => {
+          if (meta?.originalname) {
+            clientFileMetadata[meta.originalname] = meta;
+          }
+        });
+      }
+    } catch (metaError) {
+      console.error('Error parsing fileMetadata:', metaError);
     }
     
     // Validate that we have at least some data
@@ -43,7 +57,7 @@ router.post('/', upload.array('files', 100), async (req, res) => {
     });
 
     // Process in background
-    processData(jobId, files, textData);
+    processData(jobId, files, textData, clientFileMetadata);
 
     res.json({ jobId, status: 'processing' });
   } catch (error) {
@@ -61,7 +75,7 @@ router.get('/status/:jobId', (req, res) => {
   res.json(job);
 });
 
-async function processData(jobId, files, textData) {
+async function processData(jobId, files, textData, clientFileMetadata = {}) {
   const job = processingJobs.get(jobId);
   const scanner = new DataScanner();
   const predictor = new PredictionAgent();
@@ -72,7 +86,7 @@ async function processData(jobId, files, textData) {
     // Stage 1: Scanning (25%)
     job.stage = 'scanning';
     job.progress = 10;
-    const scannedData = await scanner.scan(files, textData);
+    const scannedData = await scanner.scan(files, textData, clientFileMetadata);
     job.progress = 25;
 
     // Stage 2: Prediction (50%)

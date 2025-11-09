@@ -10,6 +10,7 @@ const fs = require('fs').promises;
 const uploadRoutes = require('./routes/upload');
 const memoryRoutes = require('./routes/memories');
 const clusterRoutes = require('./routes/clusters');
+const { ensureNemotronAnalysis } = require('./services/nemotron-initializer');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -33,6 +34,7 @@ async function ensureDirectories() {
 }
 
 // Routes
+app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/upload', uploadRoutes);
 app.use('/api/memories', memoryRoutes);
 app.use('/api/clusters', clusterRoutes);
@@ -43,11 +45,19 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start server
-ensureDirectories().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+ensureDirectories()
+  .then(async () => {
+    try {
+      await ensureNemotronAnalysis();
+    } catch (error) {
+      console.error('[Server] Nemotron initialization failed:', error.message);
+    }
+  })
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   });
-});
 
 module.exports = app;
 

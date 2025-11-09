@@ -2,8 +2,11 @@ const natural = require('natural');
 
 class SentimentAgent {
   constructor() {
-    this.analyzer = new natural.SentimentAnalyzer('English', 
-      natural.PorterStemmer, ['negation']);
+    this.analyzer = new natural.SentimentAnalyzer(
+      'English',
+      natural.PorterStemmer,
+      'afinn'
+    );
     this.tokenizer = new natural.WordTokenizer();
   }
 
