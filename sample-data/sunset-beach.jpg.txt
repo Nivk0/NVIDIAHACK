@@ -1,0 +1,8 @@
+[Image File: sunset-beach.jpg]
+Type: JPEG Image
+Dimensions: 2560x1440
+Size: 3.1 MB
+Description: Beautiful sunset at the beach
+Date Taken: 2023-08-20
+Location: Malibu Beach, California
+Quality: Excellent

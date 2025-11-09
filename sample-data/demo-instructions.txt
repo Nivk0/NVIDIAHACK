@@ -1,0 +1,35 @@
+QUICK DEMO INSTRUCTIONS
+=======================
+
+1. Open the Memory Garden AI app in your browser
+2. Click the "+ Upload Data" button
+3. Select ALL files from this sample-data folder
+   - You can select multiple files at once
+   - Or select the entire folder using the folder picker
+4. Click "Upload & Analyze"
+5. Watch as the AI processes each file:
+   - Scanning files
+   - Predicting relevance (using NVIDIA Nemotron)
+   - Analyzing sentiment
+   - Creating clusters
+6. Explore the results:
+   - View in Memory Garden (clustered by action)
+   - View in Data Viewer (table format)
+   - View Analytics Dashboard (statistics)
+   - Use AI Search to find specific memories
+
+EXPECTED RESULTS:
+- Important documents → "Keep" cluster
+- Recent meeting notes → "Keep" cluster  
+- Old random thoughts → "Compress" or "Low Relevance"
+- Research papers → "Keep" (medium relevance)
+- Personal notes → Mixed (depends on content)
+
+The AI will analyze each file and make recommendations based on:
+- Content importance
+- Recency
+- Sentiment
+- Type of file
+
+Enjoy the demo!
+

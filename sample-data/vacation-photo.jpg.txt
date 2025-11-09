@@ -1,0 +1,9 @@
+[Image File: vacation-photo.jpg]
+Type: JPEG Image
+Dimensions: 1920x1080
+Size: 2.3 MB
+Description: Family vacation photo from Grand Canyon trip
+Date Taken: 2018-06-15
+Location: Grand Canyon, Arizona
+People: Family members
+Quality: Good (slightly blurry)

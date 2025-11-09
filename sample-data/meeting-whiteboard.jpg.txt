@@ -1,0 +1,8 @@
+[Image File: meeting-whiteboard.jpg]
+Type: JPEG Image  
+Dimensions: 2048x1536
+Size: 1.8 MB
+Description: Photo of whiteboard from team meeting
+Date Taken: 2024-01-15
+Content: Project timeline and milestones
+Quality: Clear

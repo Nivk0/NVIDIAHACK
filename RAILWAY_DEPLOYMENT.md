@@ -24,9 +24,11 @@
 ### Step 4: Add Environment Variables (If Needed)
 1. Go to **"Variables"** tab
 2. Add any environment variables your backend needs:
-   - `NEMOTRON_API_KEY` (if you're using Nemotron)
+   - `NEMOTRON_API_KEY` (if you're using Nemotron) - **See [NEMOTRON_DEPLOYMENT_SETUP.md](NEMOTRON_DEPLOYMENT_SETUP.md) for detailed instructions**
    - `FRONTEND_URL` = `https://nvidiaai.netlify.app` (optional)
    - Any other variables from your `.env` file
+
+**📖 For detailed Nemotron setup instructions, see: [NEMOTRON_DEPLOYMENT_SETUP.md](NEMOTRON_DEPLOYMENT_SETUP.md)**
 
 ### Step 5: Get Your Backend URL
 1. Go to **"Settings"** tab

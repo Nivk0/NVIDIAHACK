@@ -1,0 +1,25 @@
+IMPORTANT: Insurance Policy Information
+
+Policy Number: INS-2024-789456
+Provider: Acme Insurance Company
+Type: Health Insurance
+Effective Date: January 1, 2024
+Expiration Date: December 31, 2024
+
+Coverage Details:
+- Annual Deductible: $2,000
+- Maximum Out-of-Pocket: $6,000
+- Coverage includes: Medical, Dental, Vision
+
+Primary Care Physician:
+Dr. Jane Smith
+123 Medical Center Dr
+Phone: (555) 123-4567
+
+Emergency Contact:
+Insurance Hotline: 1-800-555-HELP
+Available 24/7
+
+IMPORTANT: Keep this document in a safe place. You may need it for 
+medical appointments or claims processing.
+

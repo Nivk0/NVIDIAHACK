@@ -1,11 +1,22 @@
 // Load environment variables from .env file
-require('dotenv').config();
+// Try loading from backend directory first, then root directory
+const path = require('path');
+const fs = require('fs');
+const fsPromises = require('fs').promises;
+const backendEnvPath = path.join(__dirname, '.env');
+const rootEnvPath = path.join(__dirname, '..', '.env');
+
+if (fs.existsSync(backendEnvPath)) {
+  require('dotenv').config({ path: backendEnvPath });
+} else if (fs.existsSync(rootEnvPath)) {
+  require('dotenv').config({ path: rootEnvPath });
+} else {
+  require('dotenv').config();
+}
 
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const path = require('path');
-const fs = require('fs').promises;
 
 const uploadRoutes = require('./routes/upload');
 const memoryRoutes = require('./routes/memories');
@@ -35,10 +46,10 @@ const MEMORIES_DIR = path.join(DATA_DIR, 'memories');
 const CLUSTERS_DIR = path.join(DATA_DIR, 'clusters');
 
 async function ensureDirectories() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
-  await fs.mkdir(MEMORIES_DIR, { recursive: true });
-  await fs.mkdir(CLUSTERS_DIR, { recursive: true });
+  await fsPromises.mkdir(DATA_DIR, { recursive: true });
+  await fsPromises.mkdir(UPLOADS_DIR, { recursive: true });
+  await fsPromises.mkdir(MEMORIES_DIR, { recursive: true });
+  await fsPromises.mkdir(CLUSTERS_DIR, { recursive: true });
 }
 
 // Routes
