@@ -1,6 +1,7 @@
 const https = require('https');
 const fs = require('fs').promises;
 const path = require('path');
+const crypto = require('crypto');
 
 class NemotronAgent {
   constructor() {
@@ -16,6 +17,107 @@ class NemotronAgent {
     // Available models - try common ones
     // meta/llama-3.1-70b-instruct, meta/llama-3.1-8b-instruct, mistralai/mistral-large, etc.
     this.model = process.env.NEMOTRON_MODEL || 'meta/llama-3.1-70b-instruct';
+    
+    // Deterministic temperature for consistent results
+    this.temperature = parseFloat(process.env.NEMOTRON_TEMPERATURE || '0');
+    
+    // In-memory cache for fast lookups
+    this.memoryCache = new Map();
+    
+    // Cache directory
+    this.cacheDir = path.join(__dirname, '../data/analysis-cache');
+    
+    // Ensure cache directory exists
+    this.ensureCacheDir();
+  }
+
+  async ensureCacheDir() {
+    try {
+      await fs.mkdir(this.cacheDir, { recursive: true });
+    } catch (error) {
+      // Directory might already exist, that's fine
+    }
+  }
+
+  generateContentHash(memory) {
+    // Create a deterministic hash based on content and key metadata
+    const hashInput = JSON.stringify({
+      type: memory.type || 'unknown',
+      content: memory.content || memory.summary || '',
+      filename: memory.filename || memory.title || '',
+      createdAt: memory.createdAt || '',
+      size: memory.size || 0,
+      metadata: memory.metadata || {},
+      tags: memory.tags || []
+    });
+    return crypto.createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
+  }
+
+  generateSeed(contentHash) {
+    // Convert hex hash to integer seed (0-2147483647)
+    return parseInt(contentHash, 16) % 2147483647;
+  }
+
+  getCacheKey(memory) {
+    return this.generateContentHash(memory);
+  }
+
+  async getCachedAnalysis(memory) {
+    const cacheKey = this.getCacheKey(memory);
+    
+    // Check in-memory cache first
+    if (this.memoryCache.has(cacheKey)) {
+      const cached = this.memoryCache.get(cacheKey);
+      const age = Date.now() - cached.timestamp;
+      const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days
+      if (age < ttl) {
+        console.log(`[Nemotron] Using in-memory cached analysis for ${memory.id}`);
+        return cached.result;
+      }
+      this.memoryCache.delete(cacheKey);
+    }
+    
+    // Check disk cache
+    try {
+      const cacheFilePath = path.join(this.cacheDir, `${cacheKey}.json`);
+      const cacheContent = await fs.readFile(cacheFilePath, 'utf8');
+      const cache = JSON.parse(cacheContent);
+      
+      const age = Date.now() - cache.timestamp;
+      const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days
+      if (age < ttl) {
+        console.log(`[Nemotron] Using disk cached analysis for ${memory.id}`);
+        // Store in memory cache for faster access
+        this.memoryCache.set(cacheKey, cache);
+        return cache.result;
+      } else {
+        // Cache expired, delete it
+        await fs.unlink(cacheFilePath).catch(() => {});
+      }
+    } catch (error) {
+      // Cache file doesn't exist or is invalid, that's fine
+    }
+    
+    return null;
+  }
+
+  async setCachedAnalysis(memory, result) {
+    const cacheKey = this.getCacheKey(memory);
+    const cache = {
+      timestamp: Date.now(),
+      result: result
+    };
+    
+    // Store in memory cache
+    this.memoryCache.set(cacheKey, cache);
+    
+    // Store on disk
+    try {
+      const cacheFilePath = path.join(this.cacheDir, `${cacheKey}.json`);
+      await fs.writeFile(cacheFilePath, JSON.stringify(cache, null, 2));
+    } catch (error) {
+      console.error(`[Nemotron] Failed to write cache for ${memory.id}:`, error.message);
+    }
   }
 
   async generateSummary(memory) {
@@ -74,18 +176,38 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
 
   async analyzeMemory(memory) {
     try {
+      // Check cache first
+      const cached = await this.getCachedAnalysis(memory);
+      if (cached) {
+        return cached;
+      }
+      
       // First generate a proper summary
       const generatedSummary = await this.generateSummary(memory);
       
       // Then do the full analysis with the generated summary
       const prompt = await this.buildPrompt(memory);
-      const response = await this.callNemotronAPI(prompt);
+      const contentHash = this.generateContentHash(memory);
+      const seed = this.generateSeed(contentHash);
+      const response = await this.callNemotronAPI(prompt, seed);
       const analysis = this.parseResponse(response, memory);
       
       // Use the generated summary if available, otherwise use what Nemotron returned
       if (generatedSummary && generatedSummary.length > 20) {
         analysis.summary = generatedSummary;
       }
+      
+      // Round values for consistency
+      analysis.relevance1Month = Math.round(analysis.relevance1Month * 100) / 100;
+      analysis.relevance1Year = Math.round(analysis.relevance1Year * 100) / 100;
+      analysis.attachment = Math.round(analysis.attachment * 100) / 100;
+      analysis.confidence = Math.round(analysis.confidence * 100) / 100;
+      if (analysis.sentiment?.score !== undefined) {
+        analysis.sentiment.score = Math.round(analysis.sentiment.score * 100) / 100;
+      }
+      
+      // Cache the result
+      await this.setCachedAnalysis(memory, analysis);
       
       return analysis;
     } catch (error) {
@@ -138,58 +260,155 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
     const userProfile = await this.getUserProfile();
     const profileContext = this.formatUserProfile(userProfile);
     
-    return `You are an AI memory curator using NVIDIA Nemotron. Your task is to:
-1. Generate a clear, concise summary of what this document/memory actually is
-2. Analyze its relevance and recommend an action
+    // Calculate quantitative metrics
+    const contentLength = content.length;
+    const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+    const hasSummary = !!(memory.summary && memory.summary.length > 10);
+    const metadataCount = memory.metadata ? Object.keys(memory.metadata).length : 0;
+    const tagsCount = Array.isArray(memory.tags) ? memory.tags.length : 0;
+    
+    // Age categorization
+    let ageCategory = 'recent';
+    let recencyScore = 10;
+    if (age > 24) {
+      ageCategory = 'old';
+      recencyScore = 2;
+    } else if (age > 12) {
+      ageCategory = 'medium';
+      recencyScore = 5;
+    } else if (age > 6) {
+      ageCategory = 'recent';
+      recencyScore = 7;
+    }
+    
+    return `You are an AI memory curator using NVIDIA Nemotron. Analyze this memory and provide a structured assessment.
 
-${profileContext ? `\n=== USER CONTEXT ===\n${profileContext}\nUse this information to personalize relevance assessment. For example:\n- If user is a student, academic/work documents may be more relevant\n- If user has specific interests, related memories may have higher relevance\n- Consider life stage when assessing long-term value\n` : ''}
+${profileContext ? `=== USER CONTEXT ===
+${profileContext}
 
-Memory Stats:
+Use this context to personalize your analysis. Consider:
+- Life stage and current priorities
+- Interests and hobbies
+- Professional/academic context
+- Personal relationships and values
+
+` : ''}=== MEMORY INFORMATION ===
+
+Basic Stats:
 - Type: ${type}
-- Age: ${age} months old
+- Age: ${age} months old (${ageCategory})
 - Created: ${memory.createdAt ? new Date(memory.createdAt).toISOString() : 'unknown'}
-- Tags: ${tags}
-- Estimated size: ${memory.size || 'unknown'} bytes
+- Size: ${memory.size ? this.formatBytes(memory.size) : 'unknown'}
 - Source: ${memory.source || 'unknown'}
-- Importance hints: ${importance}
-- Quality assessment: ${quality}
-${attachments ? `- Related files: ${attachments}` : ''}
 
-Content Preview (analyze this to generate a summary - DO NOT just copy the first lines):
+Content Metrics:
+- Content Length: ${contentLength} characters
+- Word Count: ${wordCount} words
+- Has Summary: ${hasSummary ? 'Yes' : 'No'}
+- Metadata Fields: ${metadataCount}
+- Tags: ${tagsCount > 0 ? tags.join(', ') : 'none'}
+
+Quality & Context:
+- Quality: ${quality}
+- Importance Hints: ${importance}
+${attachments ? `- Related Files: ${attachments}` : ''}
+
+Content Preview (first 2000 characters - analyze to understand what this is):
 ${content.substring(0, 2000)}
+${content.length > 2000 ? '\n[... content truncated ...]' : ''}
 
 Contextual Insights:
 ${contextInsights}
 
-Decision Principles:
-- KEEP: Significant life events, irreplaceable childhood photos, high emotional attachment, recently referenced documents, or items highly relevant to user's current context/interests.
-- COMPRESS: Moderately important items that should be retained in smaller form (e.g., old but occasionally referenced research PDFs, documents related to past but not current interests).
-- LOW_RELEVANCE: Blurry/low-quality images, outdated documents, redundant work emails, or items with low future relevance and attachment that don't align with user's current context.
-- DELETE: Very low relevance items that are outdated, redundant, or completely unrelated to user's current life stage, interests, or needs.
+=== ANALYSIS FRAMEWORK ===
 
-CRITICAL: Generate a TRUE SUMMARY, not an excerpt. Analyze the content and create a concise description.
+Evaluate using these 5 factors (each 0-1 scale):
 
-Analyze this memory and respond in JSON:
+1. TEMPORAL RELEVANCE
+   - Recent items (0-6 months): High relevance
+   - Medium age (6-12 months): Moderate relevance
+   - Old items (12+ months): Lower relevance unless historically significant
+   - Recency Score: ${recencyScore}/10
+
+2. CONTENT VALUE
+   - Quality and completeness
+   - Information density
+   - Uniqueness of information
+   - Practical utility
+
+3. EMOTIONAL/SENTIMENTAL VALUE
+   - Personal significance
+   - Emotional attachment
+   - Sentimental importance
+   - Relationship to important people/events
+
+4. PRACTICAL UTILITY
+   - Likelihood of future reference
+   - Professional/academic value
+   - Legal or financial importance
+   - Actionable information
+
+5. UNIQUENESS
+   - Is this information available elsewhere?
+   - Is it redundant with other memories?
+   - Is it replaceable?
+
+=== ACTION DECISION RULES ===
+
+KEEP: High scores across multiple factors, especially:
+- Recent items with high content value
+- Items with high emotional attachment
+- Unique, irreplaceable memories
+- Items highly relevant to user's current context/interests
+
+COMPRESS: Moderate importance but lower future relevance:
+- Old but occasionally referenced documents
+- Items with moderate value but high storage cost
+- Documents related to past but not current interests
+
+LOW_RELEVANCE: Low scores across most factors:
+- Blurry/low-quality images
+- Outdated documents
+- Redundant work emails
+- Items with low future relevance
+
+DELETE: Very low scores across all factors:
+- Completely outdated items
+- Highly redundant content
+- Items unrelated to user's current life stage/interests
+- Very low quality with no sentimental value
+
+=== RESPONSE FORMAT ===
+
+Respond with ONLY valid JSON (no markdown, no code blocks, no extra text):
+
 {
-  "summary": "A clear, concise 2-3 sentence summary that describes what this document/memory actually is. DO NOT copy the first lines verbatim. Instead: (1) For images: describe what's visible, who/what is in it, setting, mood. (2) For documents: summarize the main topic, purpose, key findings/conclusions. (3) For emails: summarize sender, recipient, subject, main message/purpose. (4) For text files: summarize main ideas, purpose, key points. Write as a summary, not a quote.",
-  "relevance1Month": number 0-1,
-  "relevance1Year": number 0-1,
-  "attachment": number 0-1,
-  "action": "keep|compress|low_relevance|delete",
-  "explanation": "A clear, human-readable explanation (2-3 sentences) explaining why this action was chosen. Reference specific factors like: the document's age, content type, relevance scores, emotional attachment, quality, and how it relates to the user's current life stage/interests. Be specific and actionable.",
-  "sentiment": "positive|negative|neutral|mixed",
-  "sentimentScore": number -1 to 1,
-  "confidence": number 0-1
-}`;
+  "summary": "A clear 2-3 sentence summary describing what this memory actually is. For images: describe what's visible, who/what, setting, mood. For documents: main topic, purpose, key findings. For emails: sender, recipient, subject, main message. DO NOT copy content verbatim - write a true summary.",
+  "relevance1Month": 0.75,
+  "relevance1Year": 0.60,
+  "attachment": 0.65,
+  "action": "keep",
+  "explanation": "2-3 sentences explaining the decision. Be specific: reference age (${age} months), content type (${type}), relevance scores, emotional factors, quality, and how it relates to user context. Example: 'This ${age}-month-old ${type} has moderate relevance (${ageCategory} age) with ${hasSummary ? 'good' : 'limited'} context. The content suggests [specific reason]. Given the user's [context], this should be [action] because [specific factor].'",
+  "sentiment": "positive",
+  "sentimentScore": 0.3,
+  "confidence": 0.85
+}
+
+IMPORTANT:
+- All numbers must be between 0-1 (except sentimentScore: -1 to 1)
+- Action must be exactly: "keep", "compress", "low_relevance", or "delete"
+- Sentiment must be exactly: "positive", "negative", "neutral", or "mixed"
+- Provide specific, actionable explanations
+- Be consistent: similar memories should get similar scores`;
   }
 
-  async callNemotronAPI(prompt) {
+  async callNemotronAPI(prompt, seed = null) {
     if (!this.apiKey) {
       throw new Error('NEMOTRON_API_KEY is not set');
     }
 
     // Using NVIDIA NIM API format (OpenAI-compatible)
-    const requestData = JSON.stringify({
+    const requestBody = {
       model: this.model,
       messages: [
         {
@@ -197,11 +416,18 @@ Analyze this memory and respond in JSON:
           content: prompt
         }
       ],
-      temperature: 0.3,
+      temperature: this.temperature,
       top_p: 0.9,
-      max_tokens: 500,
+      max_tokens: 800, // Increased for better explanations
       stream: false
-    });
+    };
+    
+    // Add seed for deterministic results if provided
+    if (seed !== null) {
+      requestBody.seed = seed;
+    }
+    
+    const requestData = JSON.stringify(requestBody);
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.apiUrl}/chat/completions`);
@@ -263,51 +489,135 @@ Analyze this memory and respond in JSON:
   parseResponse(response, memory) {
     try {
       // Extract the content from the API response
-      const content = response.choices?.[0]?.message?.content || '';
+      let content = response.choices?.[0]?.message?.content || '';
+      
+      // Clean up the content - remove markdown code blocks if present
+      content = content.trim();
+      if (content.startsWith('```json')) {
+        content = content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+      } else if (content.startsWith('```')) {
+        content = content.replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+      }
       
       // Try to extract JSON from the response
       let analysis;
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
+        try {
+          analysis = JSON.parse(jsonMatch[0]);
+        } catch (parseError) {
+          console.error('[Nemotron] JSON parse error, trying text parsing:', parseError.message);
+          analysis = this.parseTextResponse(content);
+        }
       } else {
         // If no JSON found, try to parse the text response
+        console.warn('[Nemotron] No JSON found in response, using text parser');
         analysis = this.parseTextResponse(content);
       }
 
+      // Validate and normalize the analysis
       const relevance1Month = this.toNumber(analysis.relevance1Month, 0.5);
       const relevance1Year = this.toNumber(analysis.relevance1Year, 0.5);
       const attachment = this.toNumber(analysis.attachment, 0.5);
-      const sentimentScore = this.toNumber(analysis.sentimentScore, 0);
+      const sentimentScore = this.toNumber(analysis.sentimentScore, 0, -1, 1);
 
-      let predictedAction = (analysis.action || '').toLowerCase() || 'keep';
+      let predictedAction = (analysis.action || '').toLowerCase().trim() || 'keep';
       // Normalize old "forget" to "low_relevance"
       if (predictedAction === 'forget') {
         predictedAction = 'low_relevance';
       }
+      // Validate action is one of the allowed values
+      const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
+      if (!validActions.includes(predictedAction)) {
+        console.warn(`[Nemotron] Invalid action "${predictedAction}", defaulting to "keep"`);
+        predictedAction = 'keep';
+      }
 
-      // Extract summary - use Nemotron's summary if available
-      const nemotronSummary = analysis.summary || null;
+      // Extract and clean summary
+      let nemotronSummary = analysis.summary || null;
+      if (nemotronSummary && typeof nemotronSummary === 'string') {
+        nemotronSummary = nemotronSummary.trim();
+        // Remove quotes if the entire summary is quoted
+        if ((nemotronSummary.startsWith('"') && nemotronSummary.endsWith('"')) ||
+            (nemotronSummary.startsWith("'") && nemotronSummary.endsWith("'"))) {
+          nemotronSummary = nemotronSummary.slice(1, -1);
+        }
+        // Remove "summary:" prefix if present
+        nemotronSummary = nemotronSummary.replace(/^summary\s*:?\s*/i, '').trim();
+        if (nemotronSummary.length < 10) {
+          nemotronSummary = null; // Too short to be useful
+        }
+      }
+
+      // Extract and clean explanation
+      let explanation = analysis.explanation || 'Analyzed by Nemotron';
+      if (typeof explanation === 'string') {
+        explanation = explanation.trim();
+        if (explanation.length < 20) {
+          // Generate a better explanation from the data
+          explanation = this.generateExplanation(memory, predictedAction, relevance1Month, relevance1Year, attachment);
+        }
+      }
+
+      // Validate sentiment
+      const validSentiments = ['positive', 'negative', 'neutral', 'mixed'];
+      let sentimentLabel = (analysis.sentiment || 'neutral').toLowerCase().trim();
+      if (!validSentiments.includes(sentimentLabel)) {
+        sentimentLabel = 'neutral';
+      }
 
       return {
         relevance1Month,
         relevance1Year,
         attachment,
         predictedAction,
-        summary: nemotronSummary, // Include Nemotron-generated summary
+        summary: nemotronSummary,
         sentiment: {
-          label: (analysis.sentiment || 'neutral').toLowerCase(),
+          label: sentimentLabel,
           score: sentimentScore
         },
-        explanation: analysis.explanation || 'Analyzed by Nemotron',
+        explanation: explanation,
         confidence: this.toNumber(analysis.confidence, 0.6),
         nemotronAnalyzed: true,
         nemotronUpdatedAt: new Date().toISOString()
       };
     } catch (error) {
-      console.error('Error parsing Nemotron response:', error);
+      console.error('[Nemotron] Error parsing response:', error);
       return this.fallbackAnalysis(memory);
     }
+  }
+
+  generateExplanation(memory, action, relevance1Month, relevance1Year, attachment) {
+    const age = typeof memory.age === 'number' ? memory.age : this.calculateAge(memory.createdAt);
+    const actionName = action === 'low_relevance' ? 'Low Future Relevance' :
+                      action.charAt(0).toUpperCase() + action.slice(1);
+    
+    const reasons = [];
+    if (relevance1Year < 0.3) {
+      reasons.push(`low long-term relevance (${Math.round(relevance1Year * 100)}%)`);
+    }
+    if (age > 24) {
+      reasons.push(`age of ${age} months`);
+    }
+    if (attachment < 0.3) {
+      reasons.push(`low emotional attachment (${Math.round(attachment * 100)}%)`);
+    }
+    if (memory.metadata?.imageQuality === 'blurry') {
+      reasons.push('low image quality');
+    }
+    
+    const reasonText = reasons.length > 0 
+      ? ` due to ${reasons.join(', ')}`
+      : ` based on relevance scores (${Math.round(relevance1Month * 100)}% 1-month, ${Math.round(relevance1Year * 100)}% 1-year)`;
+    
+    return `This ${age}-month-old ${memory.type || 'memory'} is recommended for ${actionName}${reasonText}.`;
+  }
+
+  toNumber(value, fallback, min = 0, max = 1) {
+    if (value === null || value === undefined) return fallback;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (Number.isNaN(num)) return fallback;
+    return Math.max(min, Math.min(max, num));
   }
 
   parseTextResponse(content) {
@@ -459,6 +769,14 @@ Analyze this memory and respond in JSON:
     }
 
     return lines.join('\n');
+  }
+
+  formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
 
   toNumber(value, fallback) {

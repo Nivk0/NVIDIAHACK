@@ -321,6 +321,50 @@ router.put('/:id/batch-action', async (req, res) => {
 // Delete a cluster
 router.delete('/:id', async (req, res) => {
   try {
+    const clusterId = req.params.id;
+    
+    // Handle merged/empty action clusters (these are dynamically generated)
+    if (clusterId.startsWith('merged-') || clusterId.startsWith('empty-')) {
+      // Extract the action from the ID (e.g., "merged-keep-123456" -> "keep")
+      const parts = clusterId.split('-');
+      const action = parts[1]; // The action is the second part
+      
+      // Delete all clusters that have this action
+      const files = await fs.readdir(CLUSTERS_DIR);
+      let deletedCount = 0;
+      
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const filePath = path.join(CLUSTERS_DIR, file);
+          const content = await fs.readFile(filePath, 'utf8');
+          let clusters = JSON.parse(content);
+          const initialLength = clusters.length;
+          
+          // Remove all clusters with this action
+          clusters = clusters.filter(c => {
+            const clusterAction = (c.action || '').toLowerCase();
+            return clusterAction !== action;
+          });
+          
+          if (clusters.length < initialLength) {
+            deletedCount += (initialLength - clusters.length);
+            // If file is now empty, delete it, otherwise save updated clusters
+            if (clusters.length === 0) {
+              await fs.unlink(filePath);
+            } else {
+              await fs.writeFile(filePath, JSON.stringify(clusters, null, 2));
+            }
+          }
+        }
+      }
+      
+      return res.json({ 
+        success: true, 
+        message: `Deleted ${deletedCount} cluster(s) with action "${action}"` 
+      });
+    }
+    
+    // Handle normal cluster deletion (for non-merged clusters)
     const files = await fs.readdir(CLUSTERS_DIR);
     let clusterFound = false;
     
@@ -329,7 +373,7 @@ router.delete('/:id', async (req, res) => {
         const filePath = path.join(CLUSTERS_DIR, file);
         const content = await fs.readFile(filePath, 'utf8');
         const clusters = JSON.parse(content);
-        const clusterIndex = clusters.findIndex(c => c.id === req.params.id);
+        const clusterIndex = clusters.findIndex(c => c.id === clusterId);
         
         if (clusterIndex !== -1) {
           clusterFound = true;

@@ -111,16 +111,18 @@ function App() {
   };
 
   const handleDeleteCluster = async (clusterId) => {
-    if (!window.confirm('Are you sure you want to delete this cluster? This will not delete the memories, only the cluster grouping.')) {
-      return;
-    }
     try {
       const response = await fetch(`${API_BASE}/clusters/${clusterId}`, {
         method: 'DELETE',
       });
       if (response.ok) {
+        const data = await response.json();
+        console.log(data.message);
         fetchClusters();
         fetchMemories(); // Refresh to update cluster references
+      } else {
+        const error = await response.json();
+        alert('Failed to delete cluster: ' + error.error);
       }
     } catch (error) {
       console.error('Error deleting cluster:', error);

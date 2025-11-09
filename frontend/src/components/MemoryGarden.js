@@ -133,7 +133,8 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
                           className="delete-cluster-btn"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Delete cluster "${cluster.name}"?`)) {
+                            const confirmMsg = `Delete "${cluster.name}" cluster? This will remove the cluster grouping but keep all memories.`;
+                            if (window.confirm(confirmMsg)) {
                               onDeleteCluster(cluster.id);
                             }
                           }}

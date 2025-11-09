@@ -241,52 +241,87 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   }, [memory.metadata]);
 
   const parsedExplanation = useMemo(() => {
-    if (!analysisExplanation) {
-      return { text: 'No explanation provided', extras: null };
-    }
-
-    const normalize = (obj) => {
-      if (!obj || typeof obj !== 'object') {
-        return { text: String(obj), extras: null };
-      }
-      const { explanation, reason, action, relevance1Month, relevance1Year, attachment, ...rest } = obj;
-      const detail = {};
-      if (relevance1Month !== undefined) detail['Relevance (1 month)'] = `${Math.round(relevance1Month * 100)}%`;
-      if (relevance1Year !== undefined) detail['Relevance (1 year)'] = `${Math.round(relevance1Year * 100)}%`;
-      if (attachment !== undefined) detail['Attachment'] = `${Math.round(attachment * 100)}%`;
-      if (action) detail['Model Action'] = action;
-      Object.entries(rest || {}).forEach(([key, value]) => {
-        if (typeof value === 'string' || typeof value === 'number') {
-          detail[key] = value;
-        }
-      });
-
-      return {
-        text: explanation || reason || 'Nemotron provided a structured analysis.',
-        extras: Object.keys(detail).length ? detail : null
-      };
-    };
-
-    if (typeof analysisExplanation === 'string') {
+    // If we have a good explanation string, use it directly
+    if (analysisExplanation && typeof analysisExplanation === 'string') {
       const trimmed = analysisExplanation.trim();
-      try {
-        const parsed = JSON.parse(trimmed);
-        return normalize(parsed);
-      } catch (err) {
-        const explanationMatch = trimmed.match(/"explanation"\s*:\s*"([^"]+)/i);
-        if (explanationMatch) {
-          return { text: explanationMatch[1], extras: null };
+
+      // Skip if it's just a placeholder
+      if (trimmed.toLowerCase() === 'analyzed by nemotron' || trimmed.length < 20) {
+        // Generate explanation from available data
+        const actionName = predictedAction === 'low_relevance' ? 'Low Future Relevance' :
+          predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1);
+        const reasons = [];
+        if (relevance1Year < 0.3) {
+          reasons.push(`low long-term relevance (${Math.round(relevance1Year * 100)}%)`);
         }
-        return { text: analysisExplanation, extras: null };
+        if (memory.age > 24) {
+          reasons.push(`age of ${memory.age} months`);
+        }
+        if (attachmentScore < 0.3) {
+          reasons.push(`low emotional attachment (${Math.round(attachmentScore * 100)}%)`);
+        }
+        if (memory.metadata?.imageQuality === 'blurry') {
+          reasons.push('low image quality');
+        }
+
+        const reasonText = reasons.length > 0
+          ? ` due to ${reasons.join(', ')}`
+          : ` based on relevance scores (${Math.round(relevance1Month * 100)}% 1-month, ${Math.round(relevance1Year * 100)}% 1-year)`;
+
+        return {
+          text: `This ${memory.age || 0}-month-old ${memory.type || 'memory'} is recommended for ${actionName}${reasonText}.`,
+          extras: null
+        };
       }
+
+      // Try to parse as JSON if it looks like JSON
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed.explanation) {
+            return { text: parsed.explanation, extras: null };
+          }
+        } catch (err) {
+          // Not valid JSON, use as-is
+        }
+      }
+
+      // Use the explanation string directly
+      return { text: trimmed, extras: null };
     }
 
-    const result = normalize(analysisExplanation);
-    if (result.text && result.text.trim().toLowerCase() === 'analyzed by nemotron') {
-      result.text = 'Nemotron analyzed this memory but did not return additional reasoning. Use the summary and metadata above for context.';
+    // If it's an object, extract explanation
+    if (analysisExplanation && typeof analysisExplanation === 'object') {
+      const text = analysisExplanation.explanation ||
+        analysisExplanation.reason ||
+        analysisExplanation.text ||
+        'Nemotron analyzed this memory.';
+      return { text: String(text), extras: null };
     }
-    return result;
-  }, [analysisExplanation]);
+
+    // Fallback: generate explanation from data
+    const actionName = predictedAction === 'low_relevance' ? 'Low Future Relevance' :
+      predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1);
+    const reasons = [];
+    if (relevance1Year < 0.3) {
+      reasons.push(`low long-term relevance (${Math.round(relevance1Year * 100)}%)`);
+    }
+    if (memory.age > 24) {
+      reasons.push(`age of ${memory.age} months`);
+    }
+    if (attachmentScore < 0.3) {
+      reasons.push(`low emotional attachment (${Math.round(attachmentScore * 100)}%)`);
+    }
+
+    const reasonText = reasons.length > 0
+      ? ` due to ${reasons.join(', ')}`
+      : ` based on relevance scores (${Math.round(relevance1Month * 100)}% 1-month, ${Math.round(relevance1Year * 100)}% 1-year)`;
+
+    return {
+      text: `This ${memory.age || 0}-month-old ${memory.type || 'memory'} is recommended for ${actionName}${reasonText}.`,
+      extras: null
+    };
+  }, [analysisExplanation, predictedAction, relevance1Month, relevance1Year, attachmentScore, memory.age, memory.type, memory.metadata]);
 
   const horizonPhrase = useMemo(() => {
     if (timeHorizon === 0) return 'right now';
@@ -436,79 +471,12 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
           <div className="explanation">
             {(() => {
               // Get the explanation text
-              let explanationText = parsedExplanation?.text;
-
-              // If we have a good explanation from Nemotron, use it
-              if (explanationText &&
-                explanationText.trim() &&
-                explanationText !== 'No explanation provided' &&
-                explanationText !== 'Analyzed by Nemotron' &&
-                explanationText.length > 20) {
-                return (
-                  <div>
-                    <p className="analysis-explanation">
-                      {explanationText}
-                    </p>
-                    <div className="explanation-factors">
-                      <p className="factors-header">Key Factors:</p>
-                      <ul>
-                        <li>
-                          <strong>Relevance:</strong> {((relevance1Month * 100).toFixed(0))}% in 1 month, {((relevance1Year * 100).toFixed(0))}% in 1 year
-                        </li>
-                        <li>
-                          <strong>Attachment:</strong> {((attachmentScore * 100).toFixed(0))}%
-                        </li>
-                        <li>
-                          <strong>Age:</strong> {memory.age || 0} months old
-                        </li>
-                        <li>
-                          <strong>Type:</strong> {memory.type || 'unknown'}
-                        </li>
-                        {memory.sentiment?.label && (
-                          <li>
-                            <strong>Sentiment:</strong> {memory.sentiment.label}
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                );
-              }
-
-              // Fallback: Generate a clear explanation based on the data
-              const actionName = predictedAction === 'low_relevance' ? 'Low Future Relevance' :
-                predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1);
-
-              let reasonParts = [];
-
-              if (relevance1Year < 0.3) {
-                reasonParts.push(`low long-term relevance (${(relevance1Year * 100).toFixed(0)}%)`);
-              }
-              if (memory.age > 24) {
-                reasonParts.push(`age of ${memory.age} months`);
-              }
-              if (attachmentScore < 0.3) {
-                reasonParts.push(`low emotional attachment (${(attachmentScore * 100).toFixed(0)}%)`);
-              }
-              if (memory.type === 'image' && memory.metadata?.imageQuality === 'blurry') {
-                reasonParts.push('low image quality');
-              }
-
-              const reasonText = reasonParts.length > 0
-                ? ` due to ${reasonParts.join(', ')}`
-                : ` based on relevance scores and content analysis`;
+              const explanationText = parsedExplanation?.text || 'No explanation available.';
 
               return (
                 <div>
                   <p className="analysis-explanation">
-                    This memory is recommended for <strong style={{ color: getActionColor(predictedAction) }}>{actionName}</strong>
-                    {reasonText}.
-                    {relevance1Year >= 0.5 && (
-                      <> It maintains {((relevance1Year * 100).toFixed(0))}% relevance over the next year, suggesting it may still be useful.</>
-                    )}
-                    {attachmentScore >= 0.5 && (
-                      <> The emotional attachment score of {((attachmentScore * 100).toFixed(0))}% indicates some personal value.</>
-                    )}
+                    {explanationText}
                   </p>
                   <div className="explanation-factors">
                     <p className="factors-header">Analysis Details:</p>
@@ -528,6 +496,16 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
                       <li>
                         <strong>Content Type:</strong> {memory.type || 'unknown'}
                       </li>
+                      {memory.sentiment?.label && (
+                        <li>
+                          <strong>Sentiment:</strong> {memory.sentiment.label}
+                        </li>
+                      )}
+                      {analysisConfidence !== undefined && (
+                        <li>
+                          <strong>Confidence:</strong> {((analysisConfidence * 100).toFixed(0))}%
+                        </li>
+                      )}
                     </ul>
                   </div>
                 </div>
