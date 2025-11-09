@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 import './DataViewer.css';
 
 function DataViewer({ memories, clusters, onMemoryClick, onMemoryActionChange }) {
-  // Removed viewMode - only showing memories now
-  const [filterAction, setFilterAction] = useState('all'); // 'all', 'keep', 'compress', 'low_relevance'
-  const [filterType, setFilterType] = useState('all'); // 'all', 'document', 'image', 'email', 'text'
-  const [sortBy, setSortBy] = useState('relevance'); // 'relevance', 'age', 'date', 'type'
+
+  const [filterAction, setFilterAction] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('relevance');
   const [searchTerm, setSearchTerm] = useState('');
 
   const getActionColor = (action) => {
     switch (action) {
       case 'keep': return '#2ecc71';
       case 'compress': return '#f39c12';
-      case 'low_relevance': return '#d68910'; // Darker orange
-      case 'forget': return '#d68910'; // Support old "forget" for backward compatibility
+      case 'low_relevance': return '#d68910';
+      case 'forget': return '#d68910';
       case 'delete': return '#c0392b';
       default: return '#95a5a6';
     }
@@ -26,19 +26,19 @@ function DataViewer({ memories, clusters, onMemoryClick, onMemoryActionChange })
     return '#95a5a6';
   };
 
-  // Get the action for a memory based on which cluster it belongs to
+
   const getMemoryAction = (memory) => {
-    // First check for user override
+
     if (memory.overrideAction) {
       let action = memory.overrideAction.toLowerCase();
-      // Normalize old "forget" to "low_relevance"
+
       if (action === 'forget') {
         return 'low_relevance';
       }
       return action;
     }
 
-    // Then check which cluster this memory belongs to
+
     const cluster = clusters.find(c => {
       const memoryIds = c.memoryIds || c.memories || [];
       return memoryIds.includes(memory.id);
@@ -46,23 +46,23 @@ function DataViewer({ memories, clusters, onMemoryClick, onMemoryActionChange })
 
     if (cluster && cluster.action) {
       let action = cluster.action.toLowerCase();
-      // Normalize old "forget" to "low_relevance"
+
       if (action === 'forget') {
         return 'low_relevance';
       }
       return action;
     }
 
-    // Fallback to predicted action or default
+
     let action = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
-    // Normalize old "forget" to "low_relevance"
+
     if (action && action.toLowerCase() === 'forget') {
       return 'low_relevance';
     }
     return action;
   };
 
-  // Filter and sort memories
+
   const filteredMemories = memories.filter(memory => {
     const action = getMemoryAction(memory);
     const matchesAction = filterAction === 'all' || action === filterAction;
@@ -88,10 +88,10 @@ function DataViewer({ memories, clusters, onMemoryClick, onMemoryActionChange })
     }
   });
 
-  // Get unique types
+
   const types = [...new Set(memories.map(m => m.type))].filter(Boolean);
 
-  // Get cluster memories count
+
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

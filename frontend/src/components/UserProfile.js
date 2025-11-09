@@ -112,8 +112,8 @@ function UserProfile({ onClose }) {
   };
 
   const commonInterests = [
-    'Technology', 'Art', 'Music', 'Sports', 'Travel', 'Reading', 
-    'Cooking', 'Photography', 'Gaming', 'Fitness', 'Education', 
+    'Technology', 'Art', 'Music', 'Sports', 'Travel', 'Reading',
+    'Cooking', 'Photography', 'Gaming', 'Fitness', 'Education',
     'Business', 'Science', 'Writing', 'Movies', 'Nature'
   ];
 
@@ -134,7 +134,7 @@ function UserProfile({ onClose }) {
 
       <div className="profile-content">
         <p className="profile-description">
-          Help us understand your context to better analyze memory relevance. 
+          Help us understand your context to better analyze memory relevance.
           This information is used to personalize AI predictions.
         </p>
 
@@ -146,7 +146,7 @@ function UserProfile({ onClose }) {
 
         <div className="profile-section">
           <h3>Basic Information</h3>
-          
+
           <div className="form-group">
             <label htmlFor="age">Age</label>
             <input
@@ -191,7 +191,7 @@ function UserProfile({ onClose }) {
 
         <div className="profile-section">
           <h3>Education & Career</h3>
-          
+
           <div className="form-group checkbox-group">
             <label className="checkbox-label">
               <input
@@ -235,7 +235,7 @@ function UserProfile({ onClose }) {
         <div className="profile-section">
           <h3>Interests & Activities</h3>
           <p className="section-description">Select your main interests (helps determine memory relevance)</p>
-          
+
           <div className="interests-grid">
             {commonInterests.map(interest => (
               <label key={interest} className="interest-checkbox">
@@ -282,7 +282,7 @@ function UserProfile({ onClose }) {
         </div>
 
         <div className="profile-info">
-          <p>ℹ️ Your profile information is stored locally and used to personalize memory analysis. 
+          <p>ℹ️ Your profile information is stored locally and used to personalize memory analysis.
           It helps the AI understand what types of memories are most relevant to you.</p>
         </div>
       </div>

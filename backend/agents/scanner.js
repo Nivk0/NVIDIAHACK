@@ -10,7 +10,7 @@ class DataScanner {
   async scan(files, textData, clientMetadata = []) {
     const scannedItems = [];
 
-    // Process uploaded files
+
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
       const clientMeta = clientMetadata[index] || {};
@@ -52,7 +52,7 @@ class DataScanner {
       }
     }
 
-    // Process text data (notes, chats, etc.)
+
     for (const item of textData) {
       const rawText = item.content || item.text || '';
       const textContent = this.sanitizeText(rawText);
@@ -80,7 +80,7 @@ class DataScanner {
     const textExts = ['.txt', '.md', '.markdown', '.log'];
     const csvExts = ['.csv', '.tsv'];
     const emailExts = ['.eml', '.msg'];
-    
+
     if (imageExts.includes(ext)) return 'image';
     if (docExts.includes(ext)) return 'document';
     if (csvExts.includes(ext)) return 'csv';

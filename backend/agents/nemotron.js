@@ -5,29 +5,29 @@ const crypto = require('crypto');
 
 class NemotronAgent {
   constructor() {
-    // NVIDIA NIM API endpoint for Nemotron models
-    // You'll need to set NEMOTRON_API_KEY environment variable
-    // Get your API key from: https://build.nvidia.com/
+
+
+
     this.apiKey = process.env.NEMOTRON_API_KEY || '';
-    
-    // Try different API endpoints - NVIDIA may use different URLs
-    // Some keys work with integrate.api.nvidia.com, others with api.nvidia.com
+
+
+
     this.apiUrl = process.env.NEMOTRON_API_URL || 'https://integrate.api.nvidia.com/v1';
-    
-    // Available models - try common ones
-    // meta/llama-3.1-70b-instruct, meta/llama-3.1-8b-instruct, mistralai/mistral-large, etc.
+
+
+
     this.model = process.env.NEMOTRON_MODEL || 'meta/llama-3.1-70b-instruct';
-    
-    // Deterministic temperature for consistent results
+
+
     this.temperature = parseFloat(process.env.NEMOTRON_TEMPERATURE || '0');
-    
-    // In-memory cache for fast lookups
+
+
     this.memoryCache = new Map();
-    
-    // Cache directory
+
+
     this.cacheDir = path.join(__dirname, '../data/analysis-cache');
-    
-    // Ensure cache directory exists
+
+
     this.ensureCacheDir();
   }
 
@@ -35,12 +35,12 @@ class NemotronAgent {
     try {
       await fs.mkdir(this.cacheDir, { recursive: true });
     } catch (error) {
-      // Directory might already exist, that's fine
+
     }
   }
 
   generateContentHash(memory) {
-    // Create a deterministic hash based on content and key metadata
+
     const hashInput = JSON.stringify({
       type: memory.type || 'unknown',
       content: memory.content || memory.summary || '',
@@ -54,7 +54,7 @@ class NemotronAgent {
   }
 
   generateSeed(contentHash) {
-    // Convert hex hash to integer seed (0-2147483647)
+
     return parseInt(contentHash, 16) % 2147483647;
   }
 
@@ -64,40 +64,40 @@ class NemotronAgent {
 
   async getCachedAnalysis(memory) {
     const cacheKey = this.getCacheKey(memory);
-    
-    // Check in-memory cache first
+
+
     if (this.memoryCache.has(cacheKey)) {
       const cached = this.memoryCache.get(cacheKey);
       const age = Date.now() - cached.timestamp;
-      const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days
+      const ttl = 7 * 24 * 60 * 60 * 1000;
       if (age < ttl) {
         console.log(`[Nemotron] Using in-memory cached analysis for ${memory.id}`);
         return cached.result;
       }
       this.memoryCache.delete(cacheKey);
     }
-    
-    // Check disk cache
+
+
     try {
       const cacheFilePath = path.join(this.cacheDir, `${cacheKey}.json`);
       const cacheContent = await fs.readFile(cacheFilePath, 'utf8');
       const cache = JSON.parse(cacheContent);
-      
+
       const age = Date.now() - cache.timestamp;
-      const ttl = 7 * 24 * 60 * 60 * 1000; // 7 days
+      const ttl = 7 * 24 * 60 * 60 * 1000;
       if (age < ttl) {
         console.log(`[Nemotron] Using disk cached analysis for ${memory.id}`);
-        // Store in memory cache for faster access
+
         this.memoryCache.set(cacheKey, cache);
         return cache.result;
       } else {
-        // Cache expired, delete it
+
         await fs.unlink(cacheFilePath).catch(() => {});
       }
     } catch (error) {
-      // Cache file doesn't exist or is invalid, that's fine
+
     }
-    
+
     return null;
   }
 
@@ -107,11 +107,11 @@ class NemotronAgent {
       timestamp: Date.now(),
       result: result
     };
-    
-    // Store in memory cache
+
+
     this.memoryCache.set(cacheKey, cache);
-    
-    // Store on disk
+
+
     try {
       const cacheFilePath = path.join(this.cacheDir, `${cacheKey}.json`);
       await fs.writeFile(cacheFilePath, JSON.stringify(cache, null, 2));
@@ -126,8 +126,8 @@ class NemotronAgent {
       const content = memory.content || '';
       const type = memory.type || 'unknown';
       const title = memory.title || memory.summary || '';
-      
-      // Create a focused prompt just for summary generation
+
+
       const summaryPrompt = `You are an AI assistant that creates concise, informative summaries of documents and files.
 
 Your task: Analyze the content below and create a clear 2-3 sentence summary that describes what this document/memory actually is.
@@ -154,10 +154,10 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
 
       const response = await this.callNemotronAPI(summaryPrompt);
       const summaryText = response.choices?.[0]?.message?.content || '';
-      
-      // Clean up the summary (remove quotes, JSON markers, etc.)
+
+
       let cleanedSummary = summaryText.trim();
-      // Remove JSON markers if present
+
       cleanedSummary = cleanedSummary.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
       // Remove quotes if the entire response is quoted
       if ((cleanedSummary.startsWith('"') && cleanedSummary.endsWith('"')) ||
@@ -166,7 +166,7 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
       }
       // Remove "summary:" prefix if present
       cleanedSummary = cleanedSummary.replace(/^summary\s*:?\s*/i, '');
-      
+
       return cleanedSummary.trim() || null;
     } catch (error) {
       console.error(`Error generating summary for memory ${memory.id}:`, error);
@@ -181,22 +181,22 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
       if (cached) {
         return cached;
       }
-      
+
       // First generate a proper summary
       const generatedSummary = await this.generateSummary(memory);
-      
+
       // Then do the full analysis with the generated summary
       const prompt = await this.buildPrompt(memory);
       const contentHash = this.generateContentHash(memory);
       const seed = this.generateSeed(contentHash);
       const response = await this.callNemotronAPI(prompt, seed);
       const analysis = this.parseResponse(response, memory);
-      
+
       // Use the generated summary if available, otherwise use what Nemotron returned
       if (generatedSummary && generatedSummary.length > 20) {
         analysis.summary = generatedSummary;
       }
-      
+
       // Round values for consistency
       analysis.relevance1Month = Math.round(analysis.relevance1Month * 100) / 100;
       analysis.relevance1Year = Math.round(analysis.relevance1Year * 100) / 100;
@@ -205,10 +205,10 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
       if (analysis.sentiment?.score !== undefined) {
         analysis.sentiment.score = Math.round(analysis.sentiment.score * 100) / 100;
       }
-      
+
       // Cache the result
       await this.setCachedAnalysis(memory, analysis);
-      
+
       return analysis;
     } catch (error) {
       console.error(`Error analyzing memory ${memory.id}:`, error);
@@ -230,7 +230,7 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
 
   formatUserProfile(profile) {
     if (!profile) return '';
-    
+
     const parts = [];
     if (profile.age) parts.push(`Age: ${profile.age}`);
     if (profile.lifeStage) parts.push(`Life Stage: ${profile.lifeStage}`);
@@ -242,7 +242,7 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
       parts.push(`Interests: ${profile.interests.join(', ')}`);
     }
     if (profile.notes) parts.push(`Additional context: ${profile.notes}`);
-    
+
     return parts.length > 0 ? parts.join('\n') : '';
   }
 
@@ -255,18 +255,18 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
     const quality = this.describeQuality(memory);
     const attachments = this.describeAttachments(memory);
     const contextInsights = memory.contextSummary || this.contextualInsights(memory, age);
-    
+
     // Load user profile for personalized analysis
     const userProfile = await this.getUserProfile();
     const profileContext = this.formatUserProfile(userProfile);
-    
+
     // Calculate quantitative metrics
     const contentLength = content.length;
     const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
     const hasSummary = !!(memory.summary && memory.summary.length > 10);
     const metadataCount = memory.metadata ? Object.keys(memory.metadata).length : 0;
     const tagsCount = Array.isArray(memory.tags) ? memory.tags.length : 0;
-    
+
     // Age categorization
     let ageCategory = 'recent';
     let recencyScore = 10;
@@ -280,7 +280,7 @@ Respond with ONLY the summary text, no JSON, no quotes, just the summary:`;
       ageCategory = 'recent';
       recencyScore = 7;
     }
-    
+
     return `You are an AI memory curator using NVIDIA Nemotron. Analyze this memory and provide a structured assessment.
 
 ${profileContext ? `=== USER CONTEXT ===
@@ -421,17 +421,17 @@ IMPORTANT:
       max_tokens: 800, // Increased for better explanations
       stream: false
     };
-    
+
     // Add seed for deterministic results if provided
     if (seed !== null) {
       requestBody.seed = seed;
     }
-    
+
     const requestData = JSON.stringify(requestBody);
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.apiUrl}/chat/completions`);
-      
+
       const options = {
         hostname: url.hostname,
         path: url.pathname,
@@ -490,7 +490,7 @@ IMPORTANT:
     try {
       // Extract the content from the API response
       let content = response.choices?.[0]?.message?.content || '';
-      
+
       // Clean up the content - remove markdown code blocks if present
       content = content.trim();
       if (content.startsWith('```json')) {
@@ -498,7 +498,7 @@ IMPORTANT:
       } else if (content.startsWith('```')) {
         content = content.replace(/^```\s*/i, '').replace(/\s*```$/i, '');
       }
-      
+
       // Try to extract JSON from the response
       let analysis;
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -591,7 +591,7 @@ IMPORTANT:
     const age = typeof memory.age === 'number' ? memory.age : this.calculateAge(memory.createdAt);
     const actionName = action === 'low_relevance' ? 'Low Future Relevance' :
                       action.charAt(0).toUpperCase() + action.slice(1);
-    
+
     const reasons = [];
     if (relevance1Year < 0.3) {
       reasons.push(`low long-term relevance (${Math.round(relevance1Year * 100)}%)`);
@@ -605,11 +605,11 @@ IMPORTANT:
     if (memory.metadata?.imageQuality === 'blurry') {
       reasons.push('low image quality');
     }
-    
-    const reasonText = reasons.length > 0 
+
+    const reasonText = reasons.length > 0
       ? ` due to ${reasons.join(', ')}`
       : ` based on relevance scores (${Math.round(relevance1Month * 100)}% 1-month, ${Math.round(relevance1Year * 100)}% 1-year)`;
-    
+
     return `This ${age}-month-old ${memory.type || 'memory'} is recommended for ${actionName}${reasonText}.`;
   }
 

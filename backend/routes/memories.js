@@ -14,17 +14,17 @@ function calculateAge(createdAt) {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
 }
 
-// Get all memories
+
 router.get('/', async (req, res) => {
   try {
     let files = [];
     try {
       files = await fs.readdir(MEMORIES_DIR);
     } catch (error) {
-      // Directory doesn't exist yet, return empty array
+
       return res.json([]);
     }
-    
+
     const allMemories = [];
 
     for (const file of files) {
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get memory by ID
+
 router.get('/:id', async (req, res) => {
   try {
     let files = [];
@@ -58,7 +58,7 @@ router.get('/:id', async (req, res) => {
     } catch (error) {
       return res.status(404).json({ error: 'Memory not found' });
     }
-    
+
     for (const file of files) {
       if (file.endsWith('.json')) {
         try {
@@ -68,7 +68,7 @@ router.get('/:id', async (req, res) => {
             age: memory.age ?? calculateAge(memory.createdAt)
           }));
           const memory = memories.find(m => m.id === req.params.id);
-          
+
           if (memory) {
             return res.json(memory);
           }
@@ -85,17 +85,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Update memory (override action)
+
 router.put('/:id', async (req, res) => {
   try {
-    const { action } = req.body; // 'keep', 'compress', 'low_relevance', 'delete'
+    const { action } = req.body;
     let files = [];
     try {
       files = await fs.readdir(MEMORIES_DIR);
     } catch (error) {
       return res.status(404).json({ error: 'Memory not found' });
     }
-    
+
     for (const file of files) {
       if (file.endsWith('.json')) {
         try {
@@ -103,7 +103,7 @@ router.put('/:id', async (req, res) => {
           const content = await fs.readFile(filePath, 'utf8');
           const memories = JSON.parse(content);
           const memoryIndex = memories.findIndex(m => m.id === req.params.id);
-          
+
           if (memoryIndex !== -1) {
             memories[memoryIndex].overrideAction = action;
             memories[memoryIndex].userOverridden = true;
@@ -123,7 +123,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Delete memory (move to oblivion)
+
 router.delete('/:id', async (req, res) => {
   try {
     let files = [];
@@ -132,7 +132,7 @@ router.delete('/:id', async (req, res) => {
     } catch (error) {
       return res.status(404).json({ error: 'Memory not found' });
     }
-    
+
     for (const file of files) {
       if (file.endsWith('.json')) {
         try {
@@ -140,32 +140,32 @@ router.delete('/:id', async (req, res) => {
           const content = await fs.readFile(filePath, 'utf8');
           const memories = JSON.parse(content);
           const memoryIndex = memories.findIndex(m => m.id === req.params.id);
-          
+
           if (memoryIndex !== -1) {
             const memory = memories[memoryIndex];
-            // Move to oblivion (save summary, delete original)
+
             const oblivionPath = path.join(__dirname, '../data/oblivion.json');
             let oblivion = [];
             try {
               const oblivionContent = await fs.readFile(oblivionPath, 'utf8');
               oblivion = JSON.parse(oblivionContent);
             } catch (e) {
-              // File doesn't exist, create new
+
             }
-            
+
             oblivion.push({
               id: memory.id,
               summary: memory.summary,
               cluster: memory.cluster,
               deletedAt: new Date().toISOString()
             });
-            
+
             await fs.writeFile(oblivionPath, JSON.stringify(oblivion, null, 2));
-            
-            // Remove from memories
+
+
             memories.splice(memoryIndex, 1);
             await fs.writeFile(filePath, JSON.stringify(memories, null, 2));
-            
+
             return res.json({ success: true, message: 'Memory moved to oblivion' });
           }
         } catch (fileError) {

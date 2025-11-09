@@ -11,17 +11,17 @@ const CompressionAgent = require('../agents/compression');
 const router = express.Router();
 const upload = multer({ dest: path.join(__dirname, '../uploads/') });
 
-// Store processing jobs
+
 const processingJobs = new Map();
 
-// Upload endpoint
+
 router.post('/', upload.array('files', 100), async (req, res) => {
   try {
     const jobId = uuidv4();
     const files = req.files || [];
     let textData = [];
     let clientFileMetadata = [];
-    
+
     try {
       textData = req.body.textData ? JSON.parse(req.body.textData) : [];
     } catch (parseError) {
@@ -38,13 +38,13 @@ router.post('/', upload.array('files', 100), async (req, res) => {
       console.error('Error parsing fileMetadata:', metaError);
       clientFileMetadata = [];
     }
-    
-    // Validate that we have at least some data
+
+
     if (files.length === 0 && textData.length === 0) {
       return res.status(400).json({ error: 'No files or text data provided' });
     }
 
-    // Initialize job
+
     processingJobs.set(jobId, {
       status: 'processing',
       progress: 0,
@@ -53,7 +53,7 @@ router.post('/', upload.array('files', 100), async (req, res) => {
       clusters: []
     });
 
-    // Process in background
+
     processData(jobId, files, textData, clientFileMetadata);
 
     res.json({ jobId, status: 'processing' });
@@ -63,7 +63,7 @@ router.post('/', upload.array('files', 100), async (req, res) => {
   }
 });
 
-// Get processing status
+
 router.get('/status/:jobId', (req, res) => {
   const job = processingJobs.get(req.params.jobId);
   if (!job) {
@@ -80,36 +80,36 @@ async function processData(jobId, files, textData, clientFileMetadata = []) {
   const compressor = new CompressionAgent();
 
   try {
-    // Stage 1: Scanning (25%)
+
     job.stage = 'scanning';
     job.progress = 10;
     const scannedData = await scanner.scan(files, textData, clientFileMetadata);
     job.progress = 25;
 
-    // Stage 2: Prediction (50%)
+
     job.stage = 'predicting';
     job.progress = 30;
     const predictions = await predictor.predict(scannedData);
     job.progress = 50;
 
-    // Stage 3: Sentiment Analysis (75%)
+
     job.stage = 'analyzing';
     job.progress = 55;
     const sentiments = await sentiment.analyze(predictions);
     job.progress = 75;
 
-    // Stage 4: Compression/Clustering (100%)
+
     job.stage = 'clustering';
     job.progress = 80;
     const clusters = await compressor.process(sentiments);
     job.progress = 100;
     job.stage = 'complete';
 
-    // Save memories
+
     job.memories = sentiments;
     job.clusters = clusters;
 
-    // Save to files
+
     await saveMemories(jobId, sentiments);
     await saveClusters(jobId, clusters);
 

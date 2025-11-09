@@ -9,34 +9,34 @@ const domain = process.env.REACT_APP_AUTH0_DOMAIN;
 const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID;
 const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
 
-// Debug: Log environment variables (remove in production)
+
 console.log('🔍 Auth0 Environment Check:');
 console.log('Domain:', domain || '❌ MISSING');
 console.log('Client ID:', clientId ? `${clientId.substring(0, 10)}...` : '❌ MISSING');
 console.log('Audience:', audience || '(not set)');
 
-// Validate required environment variables
+
 if (!domain || !clientId) {
   const errorMsg = `
     ⚠️ AUTH0 CONFIGURATION ERROR ⚠️
-    
+
     Missing required environment variables!
     Domain: ${domain || 'undefined'}
     Client ID: ${clientId || 'undefined'}
-    
+
     SOLUTION:
     1. Make sure .env file exists in frontend/ directory
     2. STOP your dev server (Ctrl+C)
     3. RESTART: npm start
     4. Environment variables only load on server startup!
-    
+
     Your .env should contain:
     REACT_APP_AUTH0_DOMAIN=dev-w0z7um1c0uzv5dm8.us.auth0.com
     REACT_APP_AUTH0_CLIENT_ID=nCUpzsQCTZEyt6UyaJI2ravBdemFQ5Ex
   `;
   console.error(errorMsg);
-  
-  // Show error in UI without breaking React
+
+
   const rootElement = document.getElementById('root');
   if (rootElement) {
     rootElement.innerHTML = `
@@ -61,7 +61,7 @@ if (!domain || !clientId) {
       </div>
     `;
   }
-  // Don't try to render React if env vars are missing
+
   throw new Error('Auth0 configuration missing. See console for details.');
 }
 
@@ -72,7 +72,7 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 
-// Build authorization params, only include audience if it's set
+
 const authorizationParams = {
   redirect_uri: window.location.origin,
 };
@@ -94,7 +94,7 @@ root.render(
   </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+
+
+
 reportWebVitals();

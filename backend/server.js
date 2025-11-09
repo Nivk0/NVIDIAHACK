@@ -1,5 +1,5 @@
-// Load environment variables from .env file
-// Try loading from backend directory first, then root directory
+
+
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
@@ -28,18 +28,18 @@ const { ensureNemotronAnalysis } = require('./services/nemotron-initializer');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Middleware
+
 app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://nvidiaai.netlify.app',
-    process.env.FRONTEND_URL // Allow custom frontend URL from env
-  ].filter(Boolean) // Remove undefined values
+    process.env.FRONTEND_URL
+  ].filter(Boolean)
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Ensure data directories exist
+
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const MEMORIES_DIR = path.join(DATA_DIR, 'memories');
@@ -52,7 +52,7 @@ async function ensureDirectories() {
   await fsPromises.mkdir(CLUSTERS_DIR, { recursive: true });
 }
 
-// Routes
+
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/api/upload', uploadRoutes);
 app.use('/api/memories', memoryRoutes);
@@ -60,12 +60,12 @@ app.use('/api/clusters', clusterRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/search', searchRoutes);
 
-// Health check
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Start server
+
 ensureDirectories()
   .then(async () => {
     try {

@@ -2,15 +2,15 @@ const { v4: uuidv4 } = require('uuid');
 
 class CompressionAgent {
   async process(sentiments) {
-    // Handle empty memories
+
     if (!sentiments || sentiments.length === 0) {
       return [];
     }
-    
-    // Cluster memories by similarity
+
+
     const clusters = this.clusterMemories(sentiments);
-    
-    // Update memories with cluster info
+
+
     sentiments.forEach(memory => {
       const cluster = clusters.find(c => c.memoryIds.includes(memory.id));
       if (cluster) {
@@ -18,17 +18,17 @@ class CompressionAgent {
         memory.clusterName = cluster.name;
       }
     });
-    
+
     return clusters;
   }
 
   clusterMemories(memories) {
-    // Cluster by action - 4 clusters: keep, compress, low_relevance, delete
+
     return this.clusterByAction(memories);
   }
 
   clusterByAction(memories) {
-    // 4 clusters based on action
+
     const actionGroups = {
       'keep': [],
       'compress': [],
@@ -36,10 +36,10 @@ class CompressionAgent {
       'delete': []
     };
 
-    // Group memories by their action (overrideAction, predictedAction, or default)
+
     memories.forEach(memory => {
       let action = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
-      // Normalize action names - convert old "forget" to "low_relevance"
+
       const normalizedAction = action.toLowerCase();
       if (normalizedAction === 'forget') {
         action = 'low_relevance';
@@ -47,15 +47,15 @@ class CompressionAgent {
       if (actionGroups[action]) {
         actionGroups[action].push(memory.id);
       } else if (normalizedAction === 'forget') {
-        // Handle old "forget" action
+
         actionGroups.low_relevance.push(memory.id);
       } else {
-        // Default to keep if action is unknown
+
         actionGroups.keep.push(memory.id);
       }
     });
 
-    // Create clusters for each action that has memories
+
     const clusters = [];
     const actionNames = {
       'keep': 'Keep',
@@ -84,14 +84,14 @@ class CompressionAgent {
 
   clusterByType(memories) {
     const typeGroups = {};
-    
+
     memories.forEach(memory => {
       if (!typeGroups[memory.type]) {
         typeGroups[memory.type] = [];
       }
       typeGroups[memory.type].push(memory.id);
     });
-    
+
     return Object.entries(typeGroups).map(([type, memoryIds]) => ({
       id: uuidv4(),
       name: `${type} cluster`,
@@ -106,18 +106,18 @@ class CompressionAgent {
 
   clusterByAge(memories) {
     const ageGroups = {
-      old: [], // > 24 months
-      medium: [], // 6-24 months
-      recent: [] // < 6 months
+      old: [],
+      medium: [],
+      recent: []
     };
-    
+
     memories.forEach(memory => {
       const age = this.calculateAge(memory.createdAt);
       if (age > 24) ageGroups.old.push(memory.id);
       else if (age > 6) ageGroups.medium.push(memory.id);
       else ageGroups.recent.push(memory.id);
     });
-    
+
     return Object.entries(ageGroups)
       .filter(([_, ids]) => ids.length > 0)
       .map(([ageGroup, memoryIds]) => ({
@@ -133,16 +133,16 @@ class CompressionAgent {
   }
 
   clusterByContent(memories) {
-    // Simple keyword-based clustering
+
     const keywordClusters = {
       'graduation': ['graduated', 'graduation', 'diploma', 'degree', 'university', 'college'],
       'work': ['work', 'job', 'office', 'meeting', 'project', 'deadline'],
       'personal': ['love', 'family', 'friend', 'birthday', 'holiday', 'vacation'],
       'blurry_images': ['blur', 'blurry', 'unclear']
     };
-    
+
     const clusters = [];
-    
+
     Object.entries(keywordClusters).forEach(([clusterName, keywords]) => {
       const matchingIds = memories
         .filter(m => {
@@ -150,14 +150,14 @@ class CompressionAgent {
           return keywords.some(kw => content.includes(kw));
         })
         .map(m => m.id);
-      
+
       if (matchingIds.length > 0) {
         clusters.push({
           id: uuidv4(),
           name: clusterName.replace('_', ' '),
           type: 'content',
           memoryIds: matchingIds,
-          action: clusterName === 'blurry_images' ? 'low_relevance' : 
+          action: clusterName === 'blurry_images' ? 'low_relevance' :
                   clusterName === 'graduation' && this.areOld(memories.filter(m => matchingIds.includes(m.id))) ? 'low_relevance' : 'keep',
           size: matchingIds.length,
           totalSize: memories.filter(m => matchingIds.includes(m.id))
@@ -165,31 +165,31 @@ class CompressionAgent {
         });
       }
     });
-    
+
     return clusters;
   }
 
   mergeClusters(clusters, memories) {
-    // Simple merge: keep non-overlapping clusters, merge small overlapping ones
+
     const merged = [];
     const used = new Set();
-    
-    // Sort by size (largest first)
+
+
     clusters.sort((a, b) => b.size - a.size);
-    
+
     clusters.forEach(cluster => {
       const overlap = cluster.memoryIds.some(id => used.has(id));
-      
+
       if (!overlap || cluster.size > 5) {
         cluster.memoryIds.forEach(id => used.add(id));
         merged.push(cluster);
       }
     });
-    
-    // Add unclustered memories to a default cluster
+
+
     const clusteredIds = new Set(merged.flatMap(c => c.memoryIds));
     const unclustered = memories.filter(m => !clusteredIds.has(m.id));
-    
+
     if (unclustered.length > 0) {
       merged.push({
         id: uuidv4(),
@@ -201,14 +201,14 @@ class CompressionAgent {
         totalSize: unclustered.reduce((sum, m) => sum + (m.size || 0), 0)
       });
     }
-    
+
     return merged;
   }
 
   getClusterAction(memories) {
     const avgRelevance = memories.reduce((sum, m) => sum + (m.relevance1Year || 0.5), 0) / memories.length;
     const avgAge = memories.reduce((sum, m) => sum + (m.age || 0), 0) / memories.length;
-    
+
     if (avgRelevance < 0.2 && avgAge > 24) return 'low_relevance';
     if (avgRelevance < 0.4 || avgAge > 12) return 'compress';
     return 'keep';

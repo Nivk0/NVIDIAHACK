@@ -6,7 +6,7 @@ const NemotronAgent = require('../agents/nemotron');
 const router = express.Router();
 const MEMORIES_DIR = path.join(__dirname, '../data/memories');
 
-// Load all memories
+
 async function loadAllMemories() {
   try {
     const files = await fs.readdir(MEMORIES_DIR);
@@ -30,7 +30,7 @@ async function loadAllMemories() {
   }
 }
 
-// AI-powered search endpoint
+
 router.post('/', async (req, res) => {
   try {
     const { query } = req.body;
@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Query is required' });
     }
 
-    // Load all memories
+
     const allMemories = await loadAllMemories();
 
     if (allMemories.length === 0) {
@@ -49,10 +49,10 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Use RAG (Retrieval-Augmented Generation) with Nemotron for semantic search
+
     const nemotron = new NemotronAgent();
-    
-    // Step 1: Use Nemotron to understand the query semantically with STRICT type filtering
+
+
     const queryUnderstandingPrompt = `You are an AI assistant performing semantic search. Analyze the user's search query and extract EXACT requirements.
 
 User's search query: "${query}"
@@ -114,10 +114,10 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
       console.error('Error understanding query:', error.message);
     }
 
-    // Step 2: STRICT pre-filtering based on type requirements
+
     const batchSize = 5;
     const semanticScores = new Map();
-    
+
     const queryLower = query.toLowerCase();
     const queryWords = queryLower.split(/\s+/).filter(w => w.length > 1);
     const allSearchTerms = [
@@ -125,51 +125,51 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
       ...(queryUnderstanding?.relatedConcepts || []),
       ...(queryUnderstanding?.searchKeywords || [])
     ].map(t => t.toLowerCase()).filter((v, i, a) => a.indexOf(v) === i);
-    
-    // STRICT type and action filtering first
+
+
     let typeFilteredMemories = allMemories;
     if (queryUnderstanding?.requiredType && queryUnderstanding?.strictTypeFilter) {
       const requiredType = queryUnderstanding.requiredType.toLowerCase();
       typeFilteredMemories = allMemories.filter(memory => {
         const memoryType = (memory.type || '').toLowerCase();
-        // Map common types
+
         if (requiredType === 'image' || requiredType === 'photo' || requiredType === 'picture') {
-          return memoryType === 'image' || memoryType === 'photo' || 
-                 (memory.filename || '').toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ||
-                 (memory.metadata?.mimeType || '').toLowerCase().startsWith('image/');
+          return memoryType === 'image' || memoryType === 'photo' ||
+            (memory.filename || '').toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ||
+            (memory.metadata?.mimeType || '').toLowerCase().startsWith('image/');
         }
         if (requiredType === 'document' || requiredType === 'pdf' || requiredType === 'file') {
           return memoryType === 'document' || memoryType === 'pdf' ||
-                 (memory.filename || '').toLowerCase().match(/\.(pdf|doc|docx|txt|rtf)$/i) ||
-                 (memory.metadata?.mimeType || '').toLowerCase().includes('pdf') ||
-                 (memory.metadata?.mimeType || '').toLowerCase().includes('document');
+            (memory.filename || '').toLowerCase().match(/\.(pdf|doc|docx|txt|rtf)$/i) ||
+            (memory.metadata?.mimeType || '').toLowerCase().includes('pdf') ||
+            (memory.metadata?.mimeType || '').toLowerCase().includes('document');
         }
         if (requiredType === 'email' || requiredType === 'message') {
           return memoryType === 'email' || memoryType === 'chat' || memoryType === 'message';
         }
         return memoryType === requiredType;
       });
-      
+
       console.log(`Type filter: ${allMemories.length} → ${typeFilteredMemories.length} (required: ${queryUnderstanding.requiredType})`);
-      
-      // If type filter returns 0 results, warn but continue with all memories
+
+
       if (typeFilteredMemories.length === 0) {
         console.warn(`Type filter removed all memories. Continuing with all memories.`);
         typeFilteredMemories = allMemories;
       }
     }
-    
-    // STRICT action filtering - check query directly if AI didn't detect it
+
+
     let actionFilteredMemories = typeFilteredMemories;
-    
-    // Direct query check for action keywords (more reliable than AI detection)
-    // Check for common patterns: "should delete", "to delete", "I should delete", "docs to delete", etc.
+
+
+
     let detectedAction = null;
     const deletePatterns = ['delete', 'should delete', 'to delete', 'i should delete', 'should be deleted', 'want to delete', 'need to delete'];
     const lowRelevancePatterns = ['forget', 'should forget', 'to forget', 'i should forget', 'low relevance', 'low future relevance'];
     const compressPatterns = ['compress', 'should compress', 'to compress', 'i should compress'];
     const keepPatterns = ['should keep', 'to keep', 'i should keep'];
-    
+
     if (deletePatterns.some(pattern => queryLower.includes(pattern))) {
       detectedAction = 'delete';
       console.log(`Direct detection: Found DELETE action in query: "${query}"`);
@@ -183,11 +183,11 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
       detectedAction = 'keep';
       console.log(`Direct detection: Found KEEP action in query: "${query}"`);
     }
-    
-    // Use AI detection if available, otherwise use direct detection
+
+
     const requiredAction = queryUnderstanding?.requiredAction || detectedAction;
     const shouldFilterByAction = queryUnderstanding?.strictActionFilter || (detectedAction !== null);
-    
+
     if (requiredAction && shouldFilterByAction) {
       const actionLower = requiredAction.toLowerCase();
       actionFilteredMemories = typeFilteredMemories.filter(memory => {
@@ -198,133 +198,133 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
         }
         return matches;
       });
-      
+
       console.log(`Action filter: ${typeFilteredMemories.length} → ${actionFilteredMemories.length} (required: ${requiredAction})`);
-      
-      // If action filter returns 0 results, that's OK - user asked for specific action
+
+
       if (actionFilteredMemories.length === 0) {
         console.warn(`Action filter removed all memories. User asked for ${requiredAction} but no memories have that action.`);
-        // Don't fallback - return empty results if user specifically asked for an action that doesn't exist
+
       }
     }
-    
-    // Update the filtered set to use action-filtered memories
+
+
     typeFilteredMemories = actionFilteredMemories;
-    
-    // Special handling for blank/empty content queries
-    const requiresBlankContent = queryUnderstanding?.requiresBlankContent || 
-                                 queryLower.includes('blank') || 
-                                 queryLower.includes('empty') ||
-                                 queryLower.includes('void') ||
-                                 queryLower.includes('no content') ||
-                                 queryLower.includes('minimal content');
-    
-      // TIGHTER keyword-based pre-filtering - prioritize Nemotron summaries
+
+
+    const requiresBlankContent = queryUnderstanding?.requiresBlankContent ||
+      queryLower.includes('blank') ||
+      queryLower.includes('empty') ||
+      queryLower.includes('void') ||
+      queryLower.includes('no content') ||
+      queryLower.includes('minimal content');
+
+
     const preFilteredMemories = typeFilteredMemories.filter(memory => {
-      // First check Nemotron summary/explanation for keyword matches (most reliable)
+
       const nemotronText = ((memory.nemotronAnalysis?.summary || '') + ' ' + (memory.nemotronAnalysis?.explanation || '')).toLowerCase();
-      const nemotronMatches = queryWords.some(w => nemotronText.includes(w)) || 
-                             allSearchTerms.some(t => nemotronText.includes(t.toLowerCase()));
-      
-      // Then check regular summary/content
+      const nemotronMatches = queryWords.some(w => nemotronText.includes(w)) ||
+        allSearchTerms.some(t => nemotronText.includes(t.toLowerCase()));
+
+
       const searchText = [
         memory.title || '',
         memory.filename || '',
         memory.summary || '',
         memory.content || ''
       ].join(' ').toLowerCase();
-      
-      // Require matches in either Nemotron analysis OR regular content
-      const hasMatch = nemotronMatches || 
-                      queryWords.some(word => searchText.includes(word)) ||
-                      allSearchTerms.some(term => searchText.includes(term.toLowerCase()));
-      
+
+
+      const hasMatch = nemotronMatches ||
+        queryWords.some(word => searchText.includes(word)) ||
+        allSearchTerms.some(term => searchText.includes(term.toLowerCase()));
+
       if (!hasMatch) return false;
-      
-      // Special filter for blank/empty content queries
+
+
       if (requiresBlankContent) {
         const contentLength = (memory.content || '').trim().length;
         const summaryLength = (memory.summary || '').trim().length;
         const titleLength = (memory.title || memory.filename || '').trim().length;
-        
-        // Consider blank/empty if:
-        // - Content is very short (< 100 chars) AND summary is minimal (< 30 chars)
-        // - Content is completely missing (0 chars) AND summary is short (< 50 chars)
-        // - Has title/filename but content is minimal (< 50 chars)
-        // - Content is just whitespace or very short text
-        const isBlank = (contentLength < 100 && summaryLength < 30) || 
-                       (contentLength === 0 && summaryLength < 50) ||
-                       (titleLength > 0 && contentLength < 50 && summaryLength < 40) ||
-                       (contentLength > 0 && contentLength < 30 && summaryLength < 20);
-        
+
+
+
+
+
+
+        const isBlank = (contentLength < 100 && summaryLength < 30) ||
+          (contentLength === 0 && summaryLength < 50) ||
+          (titleLength > 0 && contentLength < 50 && summaryLength < 40) ||
+          (contentLength > 0 && contentLength < 30 && summaryLength < 20);
+
         if (!isBlank) {
-          return false; // Skip non-blank documents for blank content queries
+          return false;
         }
       }
-      
-      // If strict type filter is active, be more lenient with keywords
+
+
       if (queryUnderstanding?.strictTypeFilter) {
-        return nemotronMatches || 
-               queryWords.some(word => searchText.includes(word)) ||
-               allSearchTerms.some(term => searchText.includes(term.toLowerCase())) ||
-               searchText.includes(queryLower);
+        return nemotronMatches ||
+          queryWords.some(word => searchText.includes(word)) ||
+          allSearchTerms.some(term => searchText.includes(term.toLowerCase())) ||
+          searchText.includes(queryLower);
       }
-      
-      // For blank content queries, don't require keyword matches in content (since content is blank)
-      // But still check filename/title for type matches (e.g., "blank documents" should match document filenames)
+
+
+
       if (requiresBlankContent) {
         const filenameMatch = (memory.filename || '').toLowerCase().includes(queryLower) ||
-                             queryWords.some(w => (memory.filename || '').toLowerCase().includes(w));
+          queryWords.some(w => (memory.filename || '').toLowerCase().includes(w));
         const titleMatch = (memory.title || '').toLowerCase().includes(queryLower) ||
-                          queryWords.some(w => (memory.title || '').toLowerCase().includes(w));
-        // If query mentions a type (document, image, etc.), check if filename matches that type
-        const typeMatch = queryUnderstanding?.requiredType ? 
+          queryWords.some(w => (memory.title || '').toLowerCase().includes(w));
+
+        const typeMatch = queryUnderstanding?.requiredType ?
           ((memory.type || '').toLowerCase() === queryUnderstanding.requiredType.toLowerCase()) : true;
-        return filenameMatch || titleMatch || typeMatch; // Include if filename/title/type matches
+        return filenameMatch || titleMatch || typeMatch;
       }
-      
-      // Otherwise, require keyword matches
+
+
       if (queryWords.length <= 2) {
-        return searchText.includes(queryLower) || 
-               allSearchTerms.some(term => searchText.includes(term));
+        return searchText.includes(queryLower) ||
+          allSearchTerms.some(term => searchText.includes(term));
       }
-      
+
       return queryWords.some(word => searchText.includes(word)) ||
-             allSearchTerms.some(term => searchText.includes(term));
+        allSearchTerms.some(term => searchText.includes(term));
     });
 
-    // TIGHTER candidate selection - prioritize memories with Nemotron analysis and better keyword matches
-    const candidatesToAnalyze = preFilteredMemories.length > 50 
+
+    const candidatesToAnalyze = preFilteredMemories.length > 50
       ? preFilteredMemories
-          .sort((a, b) => {
-            // Prioritize memories with Nemotron analysis (more reliable summaries)
-            const aHasNemotron = !!(a.nemotronAnalysis?.summary || a.nemotronAnalysis?.explanation);
-            const bHasNemotron = !!(b.nemotronAnalysis?.summary || b.nemotronAnalysis?.explanation);
-            if (aHasNemotron !== bHasNemotron) return bHasNemotron ? 1 : -1;
-            
-            // Then prioritize by keyword matches in Nemotron summary/explanation
-            const aNemotronText = ((a.nemotronAnalysis?.summary || '') + ' ' + (a.nemotronAnalysis?.explanation || '')).toLowerCase();
-            const bNemotronText = ((b.nemotronAnalysis?.summary || '') + ' ' + (b.nemotronAnalysis?.explanation || '')).toLowerCase();
-            const aNemotronMatches = queryWords.filter(w => aNemotronText.includes(w)).length;
-            const bNemotronMatches = queryWords.filter(w => bNemotronText.includes(w)).length;
-            if (aNemotronMatches !== bNemotronMatches) return bNemotronMatches - aNemotronMatches;
-            
-            // Then by title/summary match
-            const aText = ((a.title || a.filename || '') + ' ' + (a.summary || '')).toLowerCase();
-            const bText = ((b.title || b.filename || '') + ' ' + (b.summary || '')).toLowerCase();
-            const aMatches = queryWords.filter(w => aText.includes(w)).length;
-            const bMatches = queryWords.filter(w => bText.includes(w)).length;
-            if (aMatches !== bMatches) return bMatches - aMatches;
-            
-            // Finally by relevance
-            const relA = a.nemotronAnalysis?.relevance1Month ?? a.relevance1Month ?? 0.5;
-            const relB = b.nemotronAnalysis?.relevance1Month ?? b.relevance1Month ?? 0.5;
-            return relB - relA;
-          })
-          .slice(0, 50) // Reduced to 50 for tighter focus
+        .sort((a, b) => {
+
+          const aHasNemotron = !!(a.nemotronAnalysis?.summary || a.nemotronAnalysis?.explanation);
+          const bHasNemotron = !!(b.nemotronAnalysis?.summary || b.nemotronAnalysis?.explanation);
+          if (aHasNemotron !== bHasNemotron) return bHasNemotron ? 1 : -1;
+
+
+          const aNemotronText = ((a.nemotronAnalysis?.summary || '') + ' ' + (a.nemotronAnalysis?.explanation || '')).toLowerCase();
+          const bNemotronText = ((b.nemotronAnalysis?.summary || '') + ' ' + (b.nemotronAnalysis?.explanation || '')).toLowerCase();
+          const aNemotronMatches = queryWords.filter(w => aNemotronText.includes(w)).length;
+          const bNemotronMatches = queryWords.filter(w => bNemotronText.includes(w)).length;
+          if (aNemotronMatches !== bNemotronMatches) return bNemotronMatches - aNemotronMatches;
+
+
+          const aText = ((a.title || a.filename || '') + ' ' + (a.summary || '')).toLowerCase();
+          const bText = ((b.title || b.filename || '') + ' ' + (b.summary || '')).toLowerCase();
+          const aMatches = queryWords.filter(w => aText.includes(w)).length;
+          const bMatches = queryWords.filter(w => bText.includes(w)).length;
+          if (aMatches !== bMatches) return bMatches - aMatches;
+
+
+          const relA = a.nemotronAnalysis?.relevance1Month ?? a.relevance1Month ?? 0.5;
+          const relB = b.nemotronAnalysis?.relevance1Month ?? b.relevance1Month ?? 0.5;
+          return relB - relA;
+        })
+        .slice(0, 50)
       : preFilteredMemories;
 
-    // Helper function to generate specific reason from memory content - prioritize Nemotron analysis
+
     const generateSpecificReason = (memory, query, queryWords, allSearchTerms, queryLower) => {
       const title = (memory.title || memory.filename || '').toLowerCase();
       const nemotronSummary = (memory.nemotronAnalysis?.summary || '').toLowerCase();
@@ -332,89 +332,89 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
       const summary = (memory.summary || '').toLowerCase();
       const content = (memory.content || '').substring(0, 300).toLowerCase();
       const memoryType = memory.type || '';
-      
-      // PRIORITY 1: Check Nemotron summary/explanation (most reliable)
+
+
       if (nemotronSummary && nemotronSummary.includes(queryLower)) {
         const summaryPreview = (memory.nemotronAnalysis?.summary || '').substring(0, 150);
         return `Nemotron analysis summary directly matches "${query}": "${summaryPreview}${summaryPreview.length < (memory.nemotronAnalysis?.summary || '').length ? '...' : ''}"`;
       }
-      
+
       if (nemotronExplanation && nemotronExplanation.includes(queryLower)) {
         const explanationPreview = (memory.nemotronAnalysis?.explanation || '').substring(0, 150);
         return `Nemotron analysis explanation matches "${query}": "${explanationPreview}${explanationPreview.length < (memory.nemotronAnalysis?.explanation || '').length ? '...' : ''}"`;
       }
-      
-      // Check for matched query words in Nemotron analysis
-      const matchedWordsInNemotron = queryWords.filter(w => 
+
+
+      const matchedWordsInNemotron = queryWords.filter(w =>
         nemotronSummary.includes(w) || nemotronExplanation.includes(w)
       );
       if (matchedWordsInNemotron.length > 0) {
         const location = nemotronSummary.includes(matchedWordsInNemotron[0]) ? 'Nemotron summary' : 'Nemotron explanation';
         return `Contains keywords "${matchedWordsInNemotron.join('", "')}" in ${location}${memoryType ? ` (${memoryType})` : ''}`;
       }
-      
-      // PRIORITY 2: Check for exact query match in title
+
+
       if (title.includes(queryLower)) {
         return `Title "${memory.title || memory.filename}" directly matches "${query}"`;
       }
-      
-      // PRIORITY 3: Check for exact query match in summary
+
+
       if (summary.includes(queryLower)) {
         const summaryPreview = (memory.summary || '').substring(0, 150);
         return `Summary contains "${query}": "${summaryPreview}${summaryPreview.length < (memory.summary || '').length ? '...' : ''}"`;
       }
-      
-      // Check for matched query words
-      const matchedWords = queryWords.filter(w => 
+
+
+      const matchedWords = queryWords.filter(w =>
         title.includes(w) || summary.includes(w) || content.includes(w)
       );
       if (matchedWords.length > 0) {
-        const location = title.includes(matchedWords[0]) ? 'title' : 
-                        summary.includes(matchedWords[0]) ? 'summary' : 'content';
+        const location = title.includes(matchedWords[0]) ? 'title' :
+          summary.includes(matchedWords[0]) ? 'summary' : 'content';
         return `Contains keywords "${matchedWords.join('", "')}" in ${location}${memoryType ? ` (${memoryType})` : ''}`;
       }
-      
-      // Check for related terms
-      const matchedTerms = allSearchTerms.filter(t => 
+
+
+      const matchedTerms = allSearchTerms.filter(t =>
         title.includes(t.toLowerCase()) || summary.includes(t.toLowerCase()) || content.includes(t.toLowerCase())
       );
       if (matchedTerms.length > 0) {
         return `Matches related concepts: "${matchedTerms.slice(0, 3).join('", "')}"${memoryType ? ` (${memoryType} file)` : ''}`;
       }
-      
-      // Type-specific reasons
+
+
       if (queryLower.includes('photo') || queryLower.includes('image') || queryLower.includes('picture')) {
         if (memoryType === 'image' || (memory.filename || '').match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
           return `This is an image file (${memory.filename || memoryType}) matching your "${query}" search`;
         }
       }
-      
+
       if (queryLower.includes('document') || queryLower.includes('pdf') || queryLower.includes('file')) {
         if (memoryType === 'document' || (memory.filename || '').match(/\.(pdf|doc|docx|txt)$/i)) {
           return `This is a document file (${memory.filename || memoryType}) matching your "${query}" search`;
         }
       }
-      
-      // Fallback with content preview
+
+
       if (summary.length > 0) {
         const summaryText = (memory.summary || '').substring(0, 120);
         return `Summary content suggests relevance to "${query}": "${summaryText}${summaryText.length < (memory.summary || '').length ? '...' : ''}"`;
       }
-      
+
       if (content.length > 0) {
         const contentPreview = (memory.content || '').substring(0, 150);
         return `Content preview indicates relevance to "${query}": "${contentPreview}..."`;
       }
-      
-      // Last resort - use filename and type
+
+
       if (memory.filename) {
         return `File "${memory.filename}" (${memoryType || 'unknown type'}) appears relevant to "${query}" based on filename`;
       }
-      
+
       return `Memory (${memoryType || 'unknown type'}) identified as relevant to "${query}" through content analysis`;
     };
-    
-    // Helper to check if reason is generic
+
+
     const isGenericReason = (reason) => {
       if (!reason || reason.trim() === '') return true;
       const genericPhrases = [
@@ -430,22 +430,22 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
         'match criteria'
       ];
       const reasonLower = reason.toLowerCase();
-      // Check if it contains generic phrases AND is short (likely generic)
-      // OR if it's just a very short reason (likely generic)
+
+
       return (genericPhrases.some(phrase => reasonLower.includes(phrase)) && reason.length < 80) ||
-             (reason.length < 30 && !reason.includes('"') && !reason.includes(':')); // Very short without quotes or details
+        (reason.length < 30 && !reason.includes('"') && !reason.includes(':'));
     };
 
-    // Step 3: First pass - Semantic relevance check using RAG
-    // Compare each document's summary to the query to determine if they're actually related
+
+
     console.log(`Performing semantic relevance check on ${candidatesToAnalyze.length} candidate memories...`);
     const semanticallyRelevantMemories = [];
-    
-    // Process in smaller batches for relevance checking
+
+
     const relevanceBatchSize = 10;
     for (let i = 0; i < candidatesToAnalyze.length; i += relevanceBatchSize) {
       const batch = candidatesToAnalyze.slice(i, i + relevanceBatchSize);
-      
+
       const relevanceCheckPrompt = `You are performing STRICT semantic relevance checking. Your goal is to find documents that are VERY CLOSELY related to the user's query - not loosely related.
 
 User's search query: "${query}"
@@ -464,10 +464,10 @@ ${(queryUnderstanding?.requiredAction && queryUnderstanding.strictActionFilter) 
 
 Documents to check:
 ${batch.map((mem, idx) => {
-  const nemotronSummary = mem.nemotronAnalysis?.summary || mem.summary || '';
-  const nemotronExplanation = mem.nemotronAnalysis?.explanation || '';
-  const predictedAction = mem.overrideAction || mem.predictedAction || mem.nemotronAnalysis?.action || 'keep';
-  return `
+        const nemotronSummary = mem.nemotronAnalysis?.summary || mem.summary || '';
+        const nemotronExplanation = mem.nemotronAnalysis?.explanation || '';
+        const predictedAction = mem.overrideAction || mem.predictedAction || mem.nemotronAnalysis?.action || 'keep';
+        return `
 Document ${idx + 1}:
 - Title: ${mem.title || mem.filename || 'Untitled'}
 - Nemotron Summary: ${nemotronSummary.substring(0, 400)}
@@ -477,7 +477,7 @@ Document ${idx + 1}:
 - Predicted Action: ${predictedAction}
 - Content Preview: ${(mem.content || '').substring(0, 200)}
 `;
-}).join('\n')}
+      }).join('\n')}
 
 CRITICAL RELEVANCE RULES - BE VERY STRICT:
 1. The document's Nemotron summary OR explanation must DIRECTLY relate to the user's query topic
@@ -505,7 +505,7 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
         const relevanceResponse = await nemotron.callNemotronAPI(relevanceCheckPrompt);
         const relevanceContent = relevanceResponse.choices?.[0]?.message?.content || '';
         const relevanceJsonMatch = relevanceContent.match(/\[[\s\S]*\]/);
-        
+
         if (relevanceJsonMatch) {
           try {
             const relevanceChecks = JSON.parse(relevanceJsonMatch[0]);
@@ -514,16 +514,16 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
                 if (documentIndex !== undefined && documentIndex !== null) {
                   const memory = batch[documentIndex];
                   if (memory && isRelevant === true) {
-                    // Double-check action filter even if RAG says it's relevant
+
                     const requiredAction = queryUnderstanding?.requiredAction || detectedAction;
                     if (requiredAction) {
                       const memoryAction = (memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.action || 'keep').toLowerCase();
                       if (memoryAction !== requiredAction.toLowerCase()) {
                         console.log(`✗ Action mismatch: ${memory.title || memory.filename} - RAG said relevant but action=${memoryAction}, required=${requiredAction}`);
-                        return; // Skip - action doesn't match
+                        return;
                       }
                     }
-                    // Only include if semantically relevant AND action matches
+
                     semanticallyRelevantMemories.push(memory);
                     console.log(`✓ Relevant: ${memory.title || memory.filename} - ${relevanceExplanation || 'Semantically related'}`);
                   } else if (memory) {
@@ -534,31 +534,31 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
             }
           } catch (parseError) {
             console.error('Error parsing relevance check:', parseError);
-            // Fallback: include with action filter check
+
             batch.forEach(memory => {
-              // Check action first
+
               const requiredAction = queryUnderstanding?.requiredAction || detectedAction;
               if (requiredAction) {
                 const memoryAction = (memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.action || 'keep').toLowerCase();
                 if (memoryAction !== requiredAction.toLowerCase()) {
-                  return; // Skip - action doesn't match
+                  return;
                 }
               }
               semanticallyRelevantMemories.push(memory);
             });
           }
         } else {
-          // No JSON found - fallback to keyword-based check with action filter
+
           batch.forEach(memory => {
-            // Check action first
+
             const requiredAction = queryUnderstanding?.requiredAction || detectedAction;
             if (requiredAction) {
               const memoryAction = (memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.action || 'keep').toLowerCase();
               if (memoryAction !== requiredAction.toLowerCase()) {
-                return; // Skip - action doesn't match
+                return;
               }
             }
-            
+
             const searchText = [
               memory.title || '',
               memory.filename || '',
@@ -566,7 +566,7 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
               memory.content || ''
             ].join(' ').toLowerCase();
             const hasMatch = queryWords.some(w => searchText.includes(w)) ||
-                            allSearchTerms.some(t => searchText.includes(t.toLowerCase()));
+              allSearchTerms.some(t => searchText.includes(t.toLowerCase()));
             if (hasMatch) {
               semanticallyRelevantMemories.push(memory);
             }
@@ -574,34 +574,34 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
         }
       } catch (error) {
         console.error(`Error in relevance check batch ${i / relevanceBatchSize + 1}:`, error.message);
-        // Fallback: include with action filter check
+
         batch.forEach(memory => {
-          // Check action first
+
           const requiredAction = queryUnderstanding?.requiredAction || detectedAction;
           if (requiredAction) {
             const memoryAction = (memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.action || 'keep').toLowerCase();
             if (memoryAction !== requiredAction.toLowerCase()) {
-              return; // Skip - action doesn't match
+              return;
             }
           }
           semanticallyRelevantMemories.push(memory);
         });
       }
-      
-      // Small delay between batches
+
+
       if (i + relevanceBatchSize < candidatesToAnalyze.length) {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
-    
+
     console.log(`Semantic relevance check: ${candidatesToAnalyze.length} → ${semanticallyRelevantMemories.length} relevant memories`);
-    
-    // Step 4: Use RAG to score and rank the semantically relevant memories
+
+
     console.log(`Analyzing ${semanticallyRelevantMemories.length} semantically relevant memories with RAG...`);
-    
+
     for (let i = 0; i < semanticallyRelevantMemories.length; i += batchSize) {
       const batch = semanticallyRelevantMemories.slice(i, i + batchSize);
-      
+
       const ragPrompt = `You are performing STRICT semantic search using RAG. Find documents that EXACTLY match what the user is searching for.
 
 User's search query: "${query}"
@@ -668,12 +668,12 @@ ${queryUnderstanding?.strictTypeFilter ? 'BE STRICT: Wrong type = 0.0 score, no 
 
 Memories to analyze:
 ${batch.map((mem, idx) => {
-  const contentLength = (mem.content || '').trim().length;
-  const summaryLength = (mem.summary || '').trim().length;
-  const nemotronSummary = mem.nemotronAnalysis?.summary || mem.summary || '';
-  const nemotronExplanation = mem.nemotronAnalysis?.explanation || '';
-  const predictedAction = mem.overrideAction || mem.predictedAction || mem.nemotronAnalysis?.action || 'keep';
-  return `
+        const contentLength = (mem.content || '').trim().length;
+        const summaryLength = (mem.summary || '').trim().length;
+        const nemotronSummary = mem.nemotronAnalysis?.summary || mem.summary || '';
+        const nemotronExplanation = mem.nemotronAnalysis?.explanation || '';
+        const predictedAction = mem.overrideAction || mem.predictedAction || mem.nemotronAnalysis?.action || 'keep';
+        return `
 Memory ${idx + 1} (Index: ${idx}):
 - Title: ${mem.title || mem.filename || 'Untitled'}
 - ⭐ Nemotron Summary (PRIMARY): ${nemotronSummary.substring(0, 400)}${nemotronSummary.length > 400 ? '...' : ''}
@@ -686,7 +686,7 @@ Memory ${idx + 1} (Index: ${idx}):
 - Content Length: ${contentLength} characters${contentLength < 100 ? ' (VERY SHORT - possibly blank/empty)' : ''}
 - Tags: ${(mem.tags || []).join(', ') || 'none'}
 `;
-}).join('\n')}
+      }).join('\n')}
 
 For each memory, provide:
 - relevanceScore: 0.0 to 1.0 (BE STRICT - only score 0.5+ if VERY closely related)
@@ -720,7 +720,7 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
         const ragResponse = await nemotron.callNemotronAPI(ragPrompt);
         const ragContent = ragResponse.choices?.[0]?.message?.content || '';
         const ragJsonMatch = ragContent.match(/\[[\s\S]*\]/);
-        
+
         if (ragJsonMatch) {
           try {
             const scores = JSON.parse(ragJsonMatch[0]);
@@ -733,13 +733,13 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
                     // Validate and improve reason - replace generic ones with specific ones
                     let finalReason = (reason || '').trim();
                     // Always check and replace if generic - be aggressive about it
-                    if (!finalReason || finalReason === '' || isGenericReason(finalReason) || 
-                        finalReason.toLowerCase().includes('matches search criteria') ||
-                        finalReason.toLowerCase().includes('matches criteria')) {
+                    if (!finalReason || finalReason === '' || isGenericReason(finalReason) ||
+                      finalReason.toLowerCase().includes('matches search criteria') ||
+                      finalReason.toLowerCase().includes('matches criteria')) {
                       // Generate specific reason from memory content
                       finalReason = generateSpecificReason(memory, query, queryWords, allSearchTerms, queryLower);
                     }
-                    
+
                     semanticScores.set(memory.id, {
                       score: score,
                       reason: finalReason
@@ -757,16 +757,16 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
                 const summary = (memory.summary || '').toLowerCase();
                 const content = (memory.content || '').substring(0, 200).toLowerCase();
                 const searchText = [title, summary, content].join(' ');
-                
+
                 const matchedWords = queryWords.filter(w => searchText.includes(w));
                 const matchedTerms = allSearchTerms.filter(t => searchText.includes(t.toLowerCase()));
                 const score = Math.min(0.6, 0.2 + (matchedWords.length * 0.1));
-                
+
                 // Generate specific reason using helper function
                 const reason = generateSpecificReason(memory, query, queryWords, allSearchTerms, queryLower);
-                
-                semanticScores.set(memory.id, { 
-                  score: score, 
+
+                semanticScores.set(memory.id, {
+                  score: score,
                   reason: reason
                 });
               }
@@ -780,16 +780,16 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
               const summary = (memory.summary || '').toLowerCase();
               const content = (memory.content || '').substring(0, 200).toLowerCase();
               const searchText = [title, summary, content].join(' ');
-              
+
               const matchedWords = queryWords.filter(w => searchText.includes(w));
               const matchedTerms = allSearchTerms.filter(t => searchText.includes(t.toLowerCase()));
               const score = Math.min(0.6, 0.2 + (matchedWords.length * 0.1));
-              
+
               // Generate specific reason using helper function
               const reason = generateSpecificReason(memory, query, queryWords, allSearchTerms, queryLower);
-              
-              semanticScores.set(memory.id, { 
-                score: score, 
+
+              semanticScores.set(memory.id, {
+                score: score,
                 reason: reason
               });
             }
@@ -804,22 +804,22 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
             const summary = (memory.summary || '').toLowerCase();
             const content = (memory.content || '').substring(0, 200).toLowerCase();
             const searchText = [title, summary, content].join(' ');
-            
+
             const matchedWords = queryWords.filter(w => searchText.includes(w));
             const matchedTerms = allSearchTerms.filter(t => searchText.includes(t.toLowerCase()));
             const score = Math.min(0.7, 0.3 + (matchedWords.length * 0.1) + (matchedTerms.length * 0.05));
-            
+
             // Generate detailed reason using helper function
             const reason = generateSpecificReason(memory, query, queryWords, allSearchTerms, queryLower);
-            
-            semanticScores.set(memory.id, { 
-              score: score, 
+
+            semanticScores.set(memory.id, {
+              score: score,
               reason: reason
             });
           }
         });
       }
-      
+
       // Small delay between batches to avoid rate limiting
       if (i + batchSize < candidatesToAnalyze.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -830,7 +830,7 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
     // Apply type filter again as final check
     // MUCH HIGHER threshold for tighter results - require strong matches
     const threshold = queryUnderstanding?.strictTypeFilter ? 0.5 : 0.4; // Increased from 0.3/0.2
-    
+
     // Only work with memories that passed semantic relevance check
     let results = semanticallyRelevantMemories
       .filter(memory => {
@@ -838,14 +838,14 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
         // Check both AI detection and direct query detection
         const queryLower = query.toLowerCase();
         let requiredAction = queryUnderstanding?.requiredAction;
-        
+
         // Direct query check (more reliable) - use same patterns as above
         if (!requiredAction) {
           const deletePatterns = ['delete', 'should delete', 'to delete', 'i should delete', 'should be deleted', 'want to delete', 'need to delete'];
           const lowRelevancePatterns = ['forget', 'should forget', 'to forget', 'i should forget', 'low relevance', 'low future relevance'];
           const compressPatterns = ['compress', 'should compress', 'to compress', 'i should compress'];
           const keepPatterns = ['should keep', 'to keep', 'i should keep'];
-          
+
           if (deletePatterns.some(pattern => queryLower.includes(pattern))) {
             requiredAction = 'delete';
           } else if (lowRelevancePatterns.some(pattern => queryLower.includes(pattern))) {
@@ -856,43 +856,43 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
             requiredAction = 'keep';
           }
         }
-        
+
         if (requiredAction) {
           const requiredActionLower = requiredAction.toLowerCase();
           const memoryAction = (memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.action || 'keep').toLowerCase();
-          
+
           if (memoryAction !== requiredActionLower) {
             console.log(`Final filter: Excluding memory ${memory.id} - action=${memoryAction}, required=${requiredActionLower}`);
             return false; // STRICT: exclude wrong action
           }
         }
-        
+
         // STRICT type check
         if (queryUnderstanding?.strictTypeFilter && queryUnderstanding?.requiredType) {
           const requiredType = queryUnderstanding.requiredType.toLowerCase();
           const memoryType = (memory.type || '').toLowerCase();
-          
+
           let typeMatches = false;
           if (requiredType === 'image' || requiredType === 'photo' || requiredType === 'picture') {
-            typeMatches = memoryType === 'image' || memoryType === 'photo' || 
-                         (memory.filename || '').toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ||
-                         (memory.metadata?.mimeType || '').toLowerCase().startsWith('image/');
+            typeMatches = memoryType === 'image' || memoryType === 'photo' ||
+              (memory.filename || '').toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ||
+              (memory.metadata?.mimeType || '').toLowerCase().startsWith('image/');
           } else if (requiredType === 'document' || requiredType === 'pdf' || requiredType === 'file') {
             typeMatches = memoryType === 'document' || memoryType === 'pdf' ||
-                         (memory.filename || '').toLowerCase().match(/\.(pdf|doc|docx|txt|rtf)$/i) ||
-                         (memory.metadata?.mimeType || '').toLowerCase().includes('pdf') ||
-                         (memory.metadata?.mimeType || '').toLowerCase().includes('document');
+              (memory.filename || '').toLowerCase().match(/\.(pdf|doc|docx|txt|rtf)$/i) ||
+              (memory.metadata?.mimeType || '').toLowerCase().includes('pdf') ||
+              (memory.metadata?.mimeType || '').toLowerCase().includes('document');
           } else if (requiredType === 'email' || requiredType === 'message') {
             typeMatches = memoryType === 'email' || memoryType === 'chat' || memoryType === 'message';
           } else {
             typeMatches = memoryType === requiredType;
           }
-          
+
           if (!typeMatches) {
             return false; // STRICT: exclude wrong type
           }
         }
-        
+
         const semantic = semanticScores.get(memory.id);
         if (!semantic) {
           // If not analyzed by RAG, do a quick keyword check - prioritize Nemotron analysis
@@ -903,24 +903,24 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
             memory.summary || '',
             memory.content || ''
           ].join(' ').toLowerCase();
-          
+
           // Check Nemotron analysis first (more reliable)
           const nemotronMatch = queryWords.some(w => nemotronText.includes(w)) ||
-                               allSearchTerms.some(t => nemotronText.includes(t.toLowerCase()));
+            allSearchTerms.some(t => nemotronText.includes(t.toLowerCase()));
           const regularMatch = queryWords.some(w => searchText.includes(w)) ||
-                              allSearchTerms.some(t => searchText.includes(t.toLowerCase()));
-          
+            allSearchTerms.some(t => searchText.includes(t.toLowerCase()));
+
           const hasMatch = nemotronMatch || regularMatch;
           if (hasMatch) {
             // Only assign score if type matches (if strict filter is on)
-            if (!queryUnderstanding?.strictTypeFilter || 
-                (queryUnderstanding?.strictTypeFilter && 
-                 (queryUnderstanding?.requiredType === null || 
+            if (!queryUnderstanding?.strictTypeFilter ||
+              (queryUnderstanding?.strictTypeFilter &&
+                (queryUnderstanding?.requiredType === null ||
                   (memory.type || '').toLowerCase() === (queryUnderstanding?.requiredType || '').toLowerCase()))) {
-              
+
               // Generate specific reason using helper function
               const reason = generateSpecificReason(memory, query, queryWords, allSearchTerms, queryLower);
-              
+
               // Lower score for non-RAG matches, but higher if Nemotron analysis matched
               const score = nemotronMatch ? 0.35 : 0.25;
               semanticScores.set(memory.id, { score: score, reason: reason });
@@ -938,11 +938,11 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
         // Final safety check - ensure reason is never generic
         let finalReason = semantic.reason;
         if (!finalReason || finalReason.trim() === '' || isGenericReason(finalReason) ||
-            finalReason.toLowerCase().includes('matches search criteria') ||
-            finalReason.toLowerCase().includes('matches criteria')) {
+          finalReason.toLowerCase().includes('matches search criteria') ||
+          finalReason.toLowerCase().includes('matches criteria')) {
           finalReason = generateSpecificReason(memory, query, queryWords, allSearchTerms, queryLower);
         }
-        
+
         return {
           ...memory,
           _semanticScore: semantic.score,
@@ -976,7 +976,7 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
 
   } catch (error) {
     console.error('RAG search error:', error);
-    
+
     // Fallback to basic search if RAG fails
     try {
       const allMemories = await loadAllMemories();
@@ -998,7 +998,7 @@ Respond ONLY with valid JSON array (no markdown, no code blocks):
       });
     } catch (fallbackError) {
       console.error('Fallback search also failed:', fallbackError);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Search failed. Please try again.',
         results: [],
         explanation: 'Search service unavailable'

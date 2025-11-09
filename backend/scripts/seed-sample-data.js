@@ -19,17 +19,17 @@ async function loadSampleFiles() {
   const files = [];
   try {
     const entries = await fs.readdir(SAMPLE_DATA_DIR);
-    
+
     for (const entry of entries) {
       const fullPath = path.join(SAMPLE_DATA_DIR, entry);
       const stats = await fs.stat(fullPath);
-      
-      // Skip directories and non-text files (we'll handle .txt, .md, .csv, .eml)
+
+
       if (stats.isDirectory()) continue;
-      
+
       const ext = path.extname(entry).toLowerCase();
       const allowedExts = ['.txt', '.md', '.csv', '.eml', '.jpg.txt'];
-      
+
       if (allowedExts.some(e => entry.endsWith(e))) {
         files.push({
           path: fullPath,
@@ -43,7 +43,7 @@ async function loadSampleFiles() {
   } catch (error) {
     console.error('Error reading sample data directory:', error);
   }
-  
+
   return files;
 }
 
@@ -61,23 +61,23 @@ function getMimeType(filename) {
 
 async function processSampleData() {
   console.log('🌱 Seeding sample data...\n');
-  
+
   await ensureDirectories();
-  
-  // Load sample files
+
+
   console.log('📂 Loading sample files...');
   const sampleFiles = await loadSampleFiles();
   console.log(`   Found ${sampleFiles.length} sample files\n`);
-  
+
   if (sampleFiles.length === 0) {
     console.log('⚠️  No sample files found in sample-data directory');
     return;
   }
-  
-  // Copy files to uploads directory temporarily for processing
+
+
   const UPLOADS_DIR = path.join(__dirname, '../uploads');
   await fs.mkdir(UPLOADS_DIR, { recursive: true });
-  
+
   const processedFiles = [];
   for (const file of sampleFiles) {
     const tempPath = path.join(UPLOADS_DIR, `${uuidv4()}${path.extname(file.originalname)}`);
@@ -87,15 +87,15 @@ async function processSampleData() {
       path: tempPath
     });
   }
-  
+
   try {
-    // Stage 1: Scanning
+
     console.log('🔍 Scanning files...');
     const scanner = new DataScanner();
     const scannedData = await scanner.scan(processedFiles, []);
     console.log(`   Scanned ${scannedData.length} items\n`);
-    
-    // Stage 2: Prediction
+
+
     console.log('🤖 Predicting relevance...');
     const predictor = new PredictionAgent();
     let predictions;
@@ -103,14 +103,14 @@ async function processSampleData() {
       predictions = await predictor.predict(scannedData);
     } catch (error) {
       console.log(`   ⚠️  Nemotron not available, using fallback predictions...`);
-      // Fallback: create basic predictions without Nemotron
+
       predictions = scannedData.map(item => {
         const age = calculateAge(item.createdAt);
-        // Simple heuristic-based predictions
+
         const content = (item.content || item.summary || '').toLowerCase();
         let predictedAction = 'keep';
         let relevance1Year = 0.7;
-        
+
         if (content.includes('important') || content.includes('insurance') || content.includes('policy')) {
           predictedAction = 'keep';
           relevance1Year = 0.9;
@@ -124,7 +124,7 @@ async function processSampleData() {
           predictedAction = 'compress';
           relevance1Year = 0.5;
         }
-        
+
         return {
           ...item,
           age,
@@ -141,44 +141,44 @@ async function processSampleData() {
       });
     }
     console.log(`   Generated predictions for ${predictions.length} items\n`);
-    
-    // Stage 3: Sentiment Analysis
+
+
     console.log('💭 Analyzing sentiment...');
     const sentiment = new SentimentAgent();
     const sentiments = await sentiment.analyze(predictions);
     console.log(`   Analyzed sentiment for ${sentiments.length} items\n`);
-    
-    // Stage 4: Clustering
+
+
     console.log('📦 Creating clusters...');
     const compressor = new CompressionAgent();
     const clusters = await compressor.process(sentiments);
     console.log(`   Created ${clusters.length} clusters\n`);
-    
-    // Save memories
+
+
     const jobId = 'sample-data-seed';
     const memoriesPath = path.join(MEMORIES_DIR, `${jobId}.json`);
     await fs.writeFile(memoriesPath, JSON.stringify(sentiments, null, 2));
     console.log(`✅ Saved ${sentiments.length} memories to ${memoriesPath}`);
-    
-    // Save clusters
+
+
     const clustersPath = path.join(CLUSTERS_DIR, `${jobId}.json`);
     await fs.writeFile(clustersPath, JSON.stringify(clusters, null, 2));
     console.log(`✅ Saved ${clusters.length} clusters to ${clustersPath}\n`);
-    
+
     console.log('🎉 Sample data seeded successfully!');
     console.log(`   - ${sentiments.length} memories created`);
     console.log(`   - ${clusters.length} clusters created`);
-    
+
   } catch (error) {
     console.error('❌ Error processing sample data:', error);
     throw error;
   } finally {
-    // Clean up temporary files
+
     for (const file of processedFiles) {
       try {
         await fs.unlink(file.path);
       } catch (e) {
-        // Ignore cleanup errors
+
       }
     }
   }
@@ -193,7 +193,7 @@ function calculateAge(createdAt) {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
 }
 
-// Run if called directly
+
 if (require.main === module) {
   processSampleData()
     .then(() => {

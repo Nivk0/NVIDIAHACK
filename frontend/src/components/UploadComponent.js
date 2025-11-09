@@ -10,7 +10,7 @@ function UploadComponent({ onComplete }) {
   const [textData, setTextData] = useState('');
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
-  const [status, setStatus] = useState('idle'); // idle, uploading, processing, completed
+  const [status, setStatus] = useState('idle');
   const [showPickerOptions, setShowPickerOptions] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -94,7 +94,7 @@ function UploadComponent({ onComplete }) {
         formData.append('textData', JSON.stringify(textItems));
       }
 
-      // Get auth token for upload
+
       let headers = {};
       try {
         const token = await getAccessTokenSilently();
@@ -112,7 +112,7 @@ function UploadComponent({ onComplete }) {
       const data = await response.json();
       setStatus('processing');
 
-      // Poll for progress
+
       pollProgress(data.jobId);
     } catch (error) {
       console.error('Upload error:', error);
@@ -124,7 +124,7 @@ function UploadComponent({ onComplete }) {
   const pollProgress = async (jobId) => {
     const interval = setInterval(async () => {
       try {
-        // Get auth token for status check
+
         let headers = {};
         try {
           const token = await getAccessTokenSilently();
@@ -176,10 +176,10 @@ function UploadComponent({ onComplete }) {
       <div className="upload-card">
         <h2>Upload Your Data</h2>
         <p>Upload files, notes, chats, or documents to analyze and cluster</p>
-        <div style={{ 
-          padding: '12px', 
-          background: '#e8f4f8', 
-          borderRadius: '8px', 
+        <div style={{
+          padding: '12px',
+          background: '#e8f4f8',
+          borderRadius: '8px',
           marginBottom: '20px',
           fontSize: '14px',
           color: '#2c3e50'

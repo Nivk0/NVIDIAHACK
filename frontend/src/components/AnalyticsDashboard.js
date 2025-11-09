@@ -2,36 +2,36 @@ import React, { useMemo, useCallback } from 'react';
 import './AnalyticsDashboard.css';
 
 function AnalyticsDashboard({ memories, clusters }) {
-  // Get the action for a memory based on which cluster it belongs to (same logic as DataViewer)
+
   const getMemoryAction = useCallback((memory) => {
-    // First check for user override
+
     if (memory.overrideAction) {
       let action = memory.overrideAction.toLowerCase();
-      // Normalize old "forget" to "low_relevance"
+
       if (action === 'forget') {
         return 'low_relevance';
       }
       return action;
     }
-    
-    // Then check which cluster this memory belongs to
+
+
     const cluster = clusters.find(c => {
       const memoryIds = c.memoryIds || c.memories || [];
       return memoryIds.includes(memory.id);
     });
-    
+
     if (cluster && cluster.action) {
       let action = cluster.action.toLowerCase();
-      // Normalize old "forget" to "low_relevance"
+
       if (action === 'forget') {
         return 'low_relevance';
       }
       return action;
     }
-    
-    // Fallback to predicted action or default
+
+
     let action = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
-    // Normalize old "forget" to "low_relevance"
+
     if (action && action.toLowerCase() === 'forget') {
       return 'low_relevance';
     }
@@ -43,14 +43,14 @@ function AnalyticsDashboard({ memories, clusters }) {
       return null;
     }
 
-    // Action distribution - use getMemoryAction to get action from clusters
+
     const actionCounts = memories.reduce((acc, mem) => {
       const action = getMemoryAction(mem);
       acc[action] = (acc[action] || 0) + 1;
       return acc;
     }, {});
 
-    // Storage by action - use getMemoryAction to get action from clusters
+
     const storageByAction = memories.reduce((acc, mem) => {
       const action = getMemoryAction(mem);
       const size = mem.size || 0;
@@ -58,7 +58,7 @@ function AnalyticsDashboard({ memories, clusters }) {
       return acc;
     }, {});
 
-    // Average relevance scores
+
     const avgRelevance1Month = memories.reduce((sum, m) => {
       const rel = m.nemotronAnalysis?.relevance1Month ?? m.relevance1Month ?? 0.5;
       return sum + rel;
@@ -74,31 +74,31 @@ function AnalyticsDashboard({ memories, clusters }) {
       return sum + att;
     }, 0) / memories.length;
 
-    // Sentiment distribution
+
     const sentimentCounts = memories.reduce((acc, mem) => {
       const sentiment = mem.sentiment?.label || 'neutral';
       acc[sentiment] = (acc[sentiment] || 0) + 1;
       return acc;
     }, {});
 
-    // Age distribution
+
     const ageGroups = {
       recent: memories.filter(m => (m.age || 0) < 6).length,
       medium: memories.filter(m => (m.age || 0) >= 6 && (m.age || 0) < 24).length,
       old: memories.filter(m => (m.age || 0) >= 24).length,
     };
 
-    // Type distribution
+
     const typeCounts = memories.reduce((acc, mem) => {
       const type = mem.type || 'unknown';
       acc[type] = (acc[type] || 0) + 1;
       return acc;
     }, {});
 
-    // Total storage
+
     const totalStorage = memories.reduce((sum, m) => sum + (m.size || 0), 0);
 
-    // Clusters stats
+
     const clusterStats = {
       total: clusters.length,
       actionClusters: clusters.filter(c => {
@@ -144,8 +144,8 @@ function AnalyticsDashboard({ memories, clusters }) {
     switch (action) {
       case 'keep': return '#2ecc71';
       case 'compress': return '#f39c12';
-      case 'low_relevance': return '#d68910'; // Darker orange
-      case 'forget': return '#d68910'; // Support old "forget" for backward compatibility
+      case 'low_relevance': return '#d68910';
+      case 'forget': return '#d68910';
       case 'delete': return '#c0392b';
       default: return '#95a5a6';
     }
@@ -156,7 +156,7 @@ function AnalyticsDashboard({ memories, clusters }) {
       case 'keep': return 'Keep';
       case 'compress': return 'Compress';
       case 'low_relevance': return 'Low Future Relevance';
-      case 'forget': return 'Low Future Relevance'; // Support old "forget" for backward compatibility
+      case 'forget': return 'Low Future Relevance';
       case 'delete': return 'Delete';
       default: return action ? action.charAt(0).toUpperCase() + action.slice(1) : 'Unknown';
     }
@@ -167,7 +167,7 @@ function AnalyticsDashboard({ memories, clusters }) {
       <h2>📊 Analytics Dashboard</h2>
 
       <div className="stats-grid">
-        {/* Overview Cards */}
+        {}
         <div className="stat-card overview">
           <h3>Overview</h3>
           <div className="stat-value">{stats.totalMemories}</div>
@@ -195,7 +195,7 @@ function AnalyticsDashboard({ memories, clusters }) {
         </div>
       </div>
 
-      {/* Action Distribution */}
+      {}
       <div className="stat-section">
         <h3>Action Distribution</h3>
         <div className="action-distribution">
@@ -226,9 +226,9 @@ function AnalyticsDashboard({ memories, clusters }) {
         </div>
       </div>
 
-      {/* Charts Grid */}
+      {}
       <div className="charts-grid">
-        {/* Sentiment Distribution */}
+        {}
         <div className="chart-card">
           <h3>Sentiment Distribution</h3>
           <div className="sentiment-chart">
@@ -255,7 +255,7 @@ function AnalyticsDashboard({ memories, clusters }) {
           </div>
         </div>
 
-        {/* Age Distribution */}
+        {}
         <div className="chart-card">
           <h3>Age Distribution</h3>
           <div className="age-chart">
@@ -287,7 +287,7 @@ function AnalyticsDashboard({ memories, clusters }) {
           </div>
         </div>
 
-        {/* Type Distribution */}
+        {}
         <div className="chart-card">
           <h3>Type Distribution</h3>
           <div className="type-chart">
@@ -318,7 +318,7 @@ function AnalyticsDashboard({ memories, clusters }) {
         </div>
       </div>
 
-      {/* Insights */}
+      {}
       <div className="insights-section">
         <h3>💡 Insights</h3>
         <div className="insights-list">

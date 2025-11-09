@@ -43,14 +43,14 @@ function AIMemorySearch({ memories, onMemoryClick, onClose }) {
       }
 
       const data = await response.json();
-      // Store search query with each result for RAG formatting
+
       const resultsWithQuery = (data.results || []).map(result => ({
         ...result,
         _searchQuery: data.searchQuery || query
       }));
       setResults(resultsWithQuery);
       setSearchExplanation(data.explanation || '');
-      
+
       if (data.error) {
         setError(data.error);
       } else {
@@ -147,7 +147,7 @@ function AIMemorySearch({ memories, onMemoryClick, onClose }) {
                 const action = memory.overrideAction || memory.predictedAction || 'keep';
                 const relevance1Month = memory.nemotronAnalysis?.relevance1Month ?? memory.relevance1Month ?? 0.5;
                 const relevance1Year = memory.nemotronAnalysis?.relevance1Year ?? memory.relevance1Year ?? 0.5;
-                
+
                 return (
                   <div
                     key={memory.id}

@@ -4,7 +4,7 @@ import './MemoryDetailPanel.css';
 function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
 
-  // Reset showFullSummary when memory changes
+
   useEffect(() => {
     setShowFullSummary(false);
   }, [memory?.id]);
@@ -16,18 +16,18 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   const analysisConfidence = memory.nemotronConfidence ?? memory.nemotronAnalysis?.confidence;
   const wasNemotronUsed = memory.nemotronAnalyzed ?? memory.nemotronAnalysis?.nemotronAnalyzed;
 
-  // Get sentiment score and normalize to 0-1 range (if it's -1 to 1, convert it)
+
   const rawSentimentScore = memory.sentiment?.score ?? memory.nemotronAnalysis?.sentimentScore ?? 0;
   const sentimentScore = useMemo(() => {
-    // If score is already 0-1, use it as is
+
     if (rawSentimentScore >= 0 && rawSentimentScore <= 1) {
       return rawSentimentScore;
     }
-    // If score is -1 to 1, normalize to 0-1
+
     if (rawSentimentScore >= -1 && rawSentimentScore <= 1) {
       return (rawSentimentScore + 1) / 2;
     }
-    // Default to 0.5 if unknown
+
     return 0.5;
   }, [rawSentimentScore]);
 
@@ -47,28 +47,28 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   };
 
   const resolvedFileUrl = useMemo(() => {
-    // Check imageUrl first for images
+
     if (memory.type === 'image' && memory.imageUrl) {
-      if (/^https?:\/\//i.test(memory.imageUrl)) {
+      if (/^https?:\/\//.test(memory.imageUrl)) {
         return memory.imageUrl;
       }
-      const apiBase = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'http://localhost:5001';
-      return `${apiBase}${memory.imageUrl}`;
     }
+    const apiBase = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'http://localhost:5001';
+    return `${apiBase}${memory.imageUrl}`;
+  }, [memory]);
 
-    // Then check fileUrl
+  const resolvedFilePath = useMemo(() => {
     if (!memory.fileUrl) return null;
-    if (/^https?:\/\//i.test(memory.fileUrl)) {
+    if (/^https?:\/\//.test(memory.fileUrl)) {
       return memory.fileUrl;
     }
     const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:5001';
-    // Ensure fileUrl starts with /
     const filePath = memory.fileUrl.startsWith('/') ? memory.fileUrl : `/${memory.fileUrl}`;
     return `${apiBase}${filePath}`;
   }, [memory.fileUrl, memory.imageUrl, memory.type]);
 
   const renderPrimaryContent = () => {
-    // Check for image first
+
     if (memory.type === 'image') {
       const imageSrc = resolvedFileUrl || memory.imageUrl;
       if (imageSrc) {
@@ -98,7 +98,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
           </div>
         );
       }
-      // If image type but no URL, show message
+
       return (
         <div className="memory-file-link">
           <p>Image preview not available. The image file may have been moved or deleted.</p>
@@ -106,7 +106,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       );
     }
 
-    // Check for document/file
+
     if (resolvedFileUrl) {
       const lowerUrl = resolvedFileUrl.toLowerCase();
       const isPdf = lowerUrl.includes('.pdf');
@@ -121,7 +121,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
                 title={memory.title || memory.summary || 'Document preview'}
                 className="memory-document-iframe"
                 onError={() => {
-                  // If iframe fails, show fallback
+
                 }}
               />
             </div>
@@ -160,7 +160,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       );
     }
 
-    // Fallback to content
+
     if (memory.content) {
       return (
         <div className="memory-content memory-content--full">
@@ -182,7 +182,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   const predictedAction = memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
   const futureRelevance = getFutureRelevance();
 
-  // Use Nemotron-generated summary if available, otherwise use the memory's summary
+
   const formattedSummary = useMemo(() => {
     return memory.nemotronAnalysis?.summary ||
       memory.nemotronSummary ||
@@ -221,13 +221,13 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
   }, [memory.metadata]);
 
   const parsedExplanation = useMemo(() => {
-    // If we have a good explanation string, use it directly
+
     if (analysisExplanation && typeof analysisExplanation === 'string') {
       const trimmed = analysisExplanation.trim();
 
-      // Skip if it's just a placeholder
+
       if (trimmed.toLowerCase() === 'analyzed by nemotron' || trimmed.length < 20) {
-        // Generate explanation from available data
+
         const actionName = predictedAction === 'low_relevance' ? 'Low Future Relevance' :
           predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1);
         const reasons = [];
@@ -254,7 +254,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
         };
       }
 
-      // Try to parse as JSON if it looks like JSON
+
       if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         try {
           const parsed = JSON.parse(trimmed);
@@ -262,15 +262,15 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
             return { text: parsed.explanation, extras: null };
           }
         } catch (err) {
-          // Not valid JSON, use as-is
+
         }
       }
 
-      // Use the explanation string directly
+
       return { text: trimmed, extras: null };
     }
 
-    // If it's an object, extract explanation
+
     if (analysisExplanation && typeof analysisExplanation === 'object') {
       const text = analysisExplanation.explanation ||
         analysisExplanation.reason ||
@@ -279,7 +279,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       return { text: String(text), extras: null };
     }
 
-    // Fallback: generate explanation from data
+
     const actionName = predictedAction === 'low_relevance' ? 'Low Future Relevance' :
       predictedAction.charAt(0).toUpperCase() + predictedAction.slice(1);
     const reasons = [];
@@ -443,7 +443,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
           <h3>Prediction Explanation</h3>
           <div className="explanation">
             {(() => {
-              // Get the explanation text
+
               const explanationText = parsedExplanation?.text || 'No explanation available.';
 
               return (

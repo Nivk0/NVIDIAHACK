@@ -1,9 +1,6 @@
-/**
- * Script to re-analyze existing memories using Nemotron
- * Run with: node backend/scripts/analyze-memories.js
- */
 
-// Load environment variables from .env file
+
+
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
 const fs = require('fs').promises;
@@ -14,7 +11,7 @@ const MEMORIES_DIR = path.join(__dirname, '../data/memories');
 
 async function analyzeExistingMemories() {
   const nemotron = new NemotronAgent();
-  
+
   if (!nemotron.apiKey) {
     console.error('❌ NEMOTRON_API_KEY environment variable is not set!');
     console.error('Please set it before running this script:');
@@ -23,7 +20,7 @@ async function analyzeExistingMemories() {
   }
 
   try {
-    // Read all memory files
+
     const files = await fs.readdir(MEMORIES_DIR);
     const memoryFiles = files.filter(f => f.endsWith('.json'));
 
@@ -37,7 +34,7 @@ async function analyzeExistingMemories() {
 
       console.log(`  Analyzing ${memories.length} memories with Nemotron...`);
 
-      // Analyze each memory
+
       const updatedMemories = [];
       for (let i = 0; i < memories.length; i++) {
         const memory = memories[i];
@@ -45,11 +42,11 @@ async function analyzeExistingMemories() {
 
         try {
           const analysis = await nemotron.analyzeMemory(memory);
-          
-          // Update memory with Nemotron analysis
+
+
           const updatedMemory = {
             ...memory,
-            // Use Nemotron-generated summary if available
+
             summary: analysis.summary || memory.summary,
             relevance1Month: analysis.relevance1Month,
             relevance1Year: analysis.relevance1Year,
@@ -66,15 +63,15 @@ async function analyzeExistingMemories() {
           updatedMemories.push(updatedMemory);
           console.log(`    ✅ Action: ${analysis.predictedAction} | Relevance: ${(analysis.relevance1Year * 100).toFixed(0)}%`);
 
-          // Small delay to avoid rate limiting
+
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
           console.error(`    ❌ Error analyzing ${memory.id}:`, error.message);
-          updatedMemories.push(memory); // Keep original if analysis fails
+          updatedMemories.push(memory);
         }
       }
 
-      // Write updated memories back to file
+
       await fs.writeFile(filePath, JSON.stringify(updatedMemories, null, 2));
       console.log(`  ✅ Updated ${file}`);
     }
@@ -86,6 +83,6 @@ async function analyzeExistingMemories() {
   }
 }
 
-// Run the script
+
 analyzeExistingMemories();
 

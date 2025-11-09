@@ -3,22 +3,22 @@ const NemotronAgent = require('./nemotron');
 class PredictionAgent {
   constructor() {
     this.nemotron = new NemotronAgent();
-    this.useNemotron = process.env.USE_NEMOTRON !== 'false'; // Default to true
+    this.useNemotron = process.env.USE_NEMOTRON !== 'false';
   }
 
   async predict(scannedData) {
-    // ONLY use Nemotron - no fallback to hardcoded rules
+
     if (!this.useNemotron || !this.nemotron.apiKey) {
       throw new Error('Nemotron is required but not configured. Please set NEMOTRON_API_KEY in your .env file.');
     }
-    
-    // Use Nemotron for AI-powered analysis
+
+
     return await this.predictWithNemotron(scannedData);
   }
 
   async predictWithNemotron(scannedData) {
     const results = [];
-    
+
     for (const item of scannedData) {
       const age = this.calculateAge(item.createdAt);
       const contextSummary = this.buildContextSummary(item, age);
@@ -27,11 +27,11 @@ class PredictionAgent {
         age,
         contextSummary
       });
-      
+
       results.push({
         ...item,
         age,
-        // Use Nemotron-generated summary if available, otherwise keep original summary
+
         summary: analysis.summary || item.summary,
         relevance1Month: analysis.relevance1Month,
         relevance1Year: analysis.relevance1Year,
@@ -45,10 +45,10 @@ class PredictionAgent {
         nemotronUpdatedAt: analysis.nemotronUpdatedAt
       });
 
-      // Gentle rate limiting between calls
+
       await new Promise(resolve => setTimeout(resolve, 250));
     }
-    
+
     return results;
   }
 
@@ -57,7 +57,7 @@ class PredictionAgent {
       const age = this.calculateAge(item.createdAt);
       const relevance1Month = this.calculateRelevance(item, 1);
       const relevance1Year = this.calculateRelevance(item, 12);
-      
+
       return {
         ...item,
         age,
@@ -79,24 +79,24 @@ class PredictionAgent {
   calculateRelevance(item, monthsAhead) {
     const age = this.calculateAge(item.createdAt);
     const totalAge = age + monthsAhead;
-    
+
     let baseRelevance = 0.5;
-    
-    // Older items are less relevant
-    if (totalAge > 60) baseRelevance *= 0.3; // 5+ years
-    else if (totalAge > 24) baseRelevance *= 0.5; // 2+ years
-    else if (totalAge > 12) baseRelevance *= 0.7; // 1+ year
-    
-    // Type-based relevance
+
+
+    if (totalAge > 60) baseRelevance *= 0.3;
+    else if (totalAge > 24) baseRelevance *= 0.5;
+    else if (totalAge > 12) baseRelevance *= 0.7;
+
+
     if (item.type === 'document') baseRelevance *= 1.2;
     if (item.type === 'email') baseRelevance *= 0.9;
     if (item.type === 'image') baseRelevance *= 0.8;
-    
-    // Content length (longer = potentially more important)
+
+
     if (item.content && item.content.length > 1000) baseRelevance *= 1.1;
     if (item.content && item.content.length < 100) baseRelevance *= 0.9;
-    
-    // Ensure relevance is between 0 and 1
+
+
     return Math.min(1, Math.max(0, baseRelevance));
   }
 

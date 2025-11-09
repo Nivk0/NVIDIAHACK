@@ -32,7 +32,7 @@ function Login() {
             <span className="nvidia-ufm">UFM</span>
           </div>
         </div>
-        
+
         <div className="login-form">
           <div className="form-header">
             <h1>Memory Garden <span className="ai-text">AI</span></h1>
@@ -40,7 +40,7 @@ function Login() {
           </div>
 
           <div className="form-body">
-            <button 
+            <button
               className="login-button primary"
               onClick={() => loginWithRedirect()}
             >
@@ -53,7 +53,7 @@ function Login() {
               <span className="or-line"></span>
             </div>
 
-            <button 
+            <button
               className="login-button secondary"
               onClick={() => loginWithRedirect({
                 connection: 'microsoft'

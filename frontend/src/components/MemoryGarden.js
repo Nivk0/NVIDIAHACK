@@ -6,8 +6,8 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
     switch (action) {
       case 'keep': return '#2ecc71';
       case 'compress': return '#f39c12';
-      case 'low_relevance': return '#d68910'; // Darker orange
-      case 'forget': return '#d68910'; // Support old "forget" for backward compatibility
+      case 'low_relevance': return '#d68910';
+      case 'forget': return '#d68910';
       case 'delete': return '#c0392b';
       default: return '#95a5a6';
     }
@@ -18,14 +18,14 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
       case 'keep': return 'Keep';
       case 'compress': return 'Compress';
       case 'low_relevance': return 'Low Future Relevance';
-      case 'forget': return 'Low Future Relevance'; // Support old "forget" for backward compatibility
+      case 'forget': return 'Low Future Relevance';
       case 'delete': return 'Delete';
       default: return action;
     }
   };
 
   const getClusterMemories = (cluster) => {
-    // Support both old format (memories) and new format (memoryIds)
+
     const memoryIds = cluster.memoryIds || cluster.memories || [];
     if (!Array.isArray(memoryIds)) {
       return [];
@@ -51,7 +51,7 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
       {clusters.filter(cluster => {
         const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
         const action = cluster.action ? cluster.action.toLowerCase() : '';
-        // Support old "forget" for backward compatibility
+
         if (action === 'forget') {
           return true;
         }
@@ -66,14 +66,14 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
             .filter(cluster => {
               const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
               const action = cluster.action ? cluster.action.toLowerCase() : '';
-              // Support old "forget" for backward compatibility
+
               if (action === 'forget') {
                 return true;
               }
               return cluster.type === 'action' || (cluster.action && validActions.includes(action));
             })
             .sort((a, b) => {
-              // Sort by action order: keep, compress, low_relevance, delete
+
               const order = { 'keep': 0, 'compress': 1, 'low_relevance': 2, 'forget': 2, 'delete': 3 };
               const actionA = a.action ? a.action.toLowerCase() : '';
               const actionB = b.action ? b.action.toLowerCase() : '';
@@ -81,7 +81,7 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
             })
             .map(cluster => {
               const clusterMemories = getClusterMemories(cluster);
-              
+
               return (
                 <div key={cluster.id} className="cluster-card">
                   <div className="cluster-header">
@@ -137,14 +137,14 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
                           key={memory.id}
                           className="cluster-memory-item"
                         >
-                          <div 
+                          <div
                             className="memory-item-content"
                             onClick={() => onMemoryClick(memory)}
                           >
                             {memory.type === 'image' && memory.imageUrl ? (
-                              <img 
-                                src={memory.imageUrl} 
-                                alt={memory.summary || 'Thumbnail'} 
+                              <img
+                                src={memory.imageUrl}
+                                alt={memory.summary || 'Thumbnail'}
                                 className="cluster-memory-thumbnail"
                                 onError={(e) => {
                                   e.target.style.display = 'none';
@@ -152,8 +152,8 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
                                 }}
                               />
                             ) : null}
-                            <span 
-                              className="memory-type-icon" 
+                            <span
+                              className="memory-type-icon"
                               style={{ display: memory.type === 'image' && memory.imageUrl ? 'none' : 'flex' }}
                             >
                               {memory.type?.[0]?.toUpperCase() || '?'}

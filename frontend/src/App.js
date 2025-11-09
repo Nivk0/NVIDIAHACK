@@ -20,10 +20,10 @@ function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [timeHorizon] = useState(0); // 0 = now, 12 = 1 year
-  const [viewMode, setViewMode] = useState('garden'); // 'garden', 'data', 'analytics', or 'timeline'
+  const [timeHorizon] = useState(0);
+  const [viewMode, setViewMode] = useState('garden');
 
-  // Helper function to get auth headers
+
   const getAuthHeaders = useCallback(async () => {
     const headers = {
       'Content-Type': 'application/json',
@@ -54,8 +54,8 @@ function App() {
       const data = await response.json();
       console.log(`Loaded ${data.length} memories`);
       setMemories(data);
-      // Show upload only if explicitly requested, otherwise show the views
-      // Don't auto-show upload when no memories - let user see the empty states
+
+
     } catch (error) {
       console.error('Error fetching memories:', error);
       alert(`Failed to load memories: ${error.message}. Make sure the backend server is running on port 5001.`);
@@ -82,8 +82,8 @@ function App() {
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    // Fetch data when authenticated, or if not authenticated (for demo/mock data)
-    // This allows mock data to be visible even without authentication
+
+
     if (!isLoading) {
       fetchMemories();
       fetchClusters();
@@ -91,7 +91,7 @@ function App() {
   }, [isAuthenticated, isLoading, fetchMemories, fetchClusters]);
 
   const handleUploadComplete = () => {
-    // Fetch memories and clusters after upload completes
+
     setTimeout(() => {
       fetchMemories();
       fetchClusters();
@@ -112,7 +112,7 @@ function App() {
         body: JSON.stringify({ action }),
       });
       if (response.ok) {
-        // Refresh both memories and clusters since action change affects clusters
+
         await fetchMemories();
         await fetchClusters();
         if (selectedMemory && selectedMemory.id === memoryId) {
@@ -152,10 +152,10 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         console.log(data.message);
-        // Show success message with deletion count
+
         alert(data.message || 'Cluster and all its memories deleted successfully.');
         fetchClusters();
-        fetchMemories(); // Refresh to update cluster references
+        fetchMemories();
       } else {
         const error = await response.json();
         alert('Failed to delete cluster: ' + error.error);
@@ -175,7 +175,7 @@ function App() {
       });
       if (response.ok) {
         fetchClusters();
-        fetchMemories(); // Refresh to update cluster references
+        fetchMemories();
       }
     } catch (error) {
       console.error('Error removing memory from cluster:', error);
@@ -183,7 +183,7 @@ function App() {
     }
   };
 
-  // Show loading state
+
   if (isLoading) {
     return (
       <div className="App">
@@ -194,7 +194,7 @@ function App() {
     );
   }
 
-  // Show login if not authenticated
+
   if (!isAuthenticated) {
     return <Login />;
   }
