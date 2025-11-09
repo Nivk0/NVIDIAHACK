@@ -67,7 +67,7 @@ router.get('/', async (req, res) => {
     const mergedClusters = {};
     const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
     
-    // First, load all memories to redistribute them intelligently
+    // First, load all memories to use their actual predicted actions from the files
     let allMemories = [];
     try {
       const MEMORIES_DIR = path.join(__dirname, '../data/memories');
@@ -87,45 +87,32 @@ router.get('/', async (req, res) => {
       // If we can't load memories, proceed with cluster-based merging
     }
     
-    // Redistribute memories across all 4 categories based on relevance
-    // Sort memories by relevance (descending) to assign based on percentile
-    const sortedMemories = [...allMemories].sort((a, b) => {
-      const relA = a.relevance1Year || 0.5;
-      const relB = b.relevance1Year || 0.5;
-      return relB - relA; // Sort descending
-    });
-    
-    const totalMemories = sortedMemories.length;
-    const keepThreshold = Math.floor(totalMemories * 0.40); // Top 40% -> Keep
-    const compressThreshold = Math.floor(totalMemories * 0.70); // Next 30% -> Compress
-    const lowRelevanceThreshold = Math.floor(totalMemories * 0.90); // Next 20% -> Low Future Relevance
-    // Bottom 10% -> Delete
-    
+    // Use actual predicted actions from the memory files (not fake percentile-based redistribution)
     const memoryActionMap = {};
-    sortedMemories.forEach((memory, index) => {
-      // Only respect user overrides, not predicted actions (redistribute everything else)
-      let action = memory.overrideAction; // Only use user overrides
+    allMemories.forEach((memory) => {
+      // First check for user override (always respect user overrides)
+      let action = memory.overrideAction;
       
       // Normalize old "forget" to "low_relevance"
       if (action && action.toLowerCase() === 'forget') {
         action = 'low_relevance';
       }
       
-      // If no user override, assign based on percentile position
+      // If no user override, use the actual predicted action from the file
       if (!action || !validActions.includes(action.toLowerCase())) {
-        // Distribute based on percentile position
-        if (index < keepThreshold) {
-          action = 'keep';
-        } else if (index < compressThreshold) {
-          action = 'compress';
-        } else if (index < lowRelevanceThreshold) {
-          action = 'low_relevance';
-        } else {
-          action = 'delete';
-        }
+        // Use the actual predicted action from Nemotron analysis or memory data
+        action = memory.predictedAction || 
+                 memory.nemotronAnalysis?.predictedAction || 
+                 'keep'; // Default fallback only if no prediction exists
       }
       
-      memoryActionMap[memory.id] = action.toLowerCase();
+      // Normalize action to lowercase and ensure it's valid
+      action = action.toLowerCase();
+      if (!validActions.includes(action)) {
+        action = 'keep'; // Fallback to keep if invalid
+      }
+      
+      memoryActionMap[memory.id] = action;
     });
     
     // Merge clusters and redistribute memories
@@ -141,9 +128,9 @@ router.get('/', async (req, res) => {
       // Get memory IDs from cluster
       const clusterMemoryIds = cluster.memoryIds || cluster.memories || [];
       
-      // Redistribute each memory based on its actual relevance
+      // Use actual predicted actions from memory files
       clusterMemoryIds.forEach(memoryId => {
-        // Use redistributed action if available, otherwise use cluster action
+        // Use the actual action from the memory file (from memoryActionMap), otherwise use cluster action
         const memoryAction = memoryActionMap[memoryId] || action;
         const finalAction = validActions.includes(memoryAction) ? memoryAction : 'keep';
         
@@ -318,20 +305,151 @@ router.put('/:id/batch-action', async (req, res) => {
   }
 });
 
-// Delete a cluster
+// Helper function to permanently delete a memory
+async function deleteMemoryPermanently(memoryId) {
+  const MEMORIES_DIR = path.join(__dirname, '../data/memories');
+  const UPLOADS_DIR = path.join(__dirname, '../uploads');
+  
+  let files = [];
+  try {
+    files = await fs.readdir(MEMORIES_DIR);
+  } catch (error) {
+    return false;
+  }
+  
+  for (const file of files) {
+    if (file.endsWith('.json')) {
+      try {
+        const filePath = path.join(MEMORIES_DIR, file);
+        const content = await fs.readFile(filePath, 'utf8');
+        const memories = JSON.parse(content);
+        const memoryIndex = memories.findIndex(m => m.id === memoryId);
+        
+        if (memoryIndex !== -1) {
+          const memory = memories[memoryIndex];
+          
+          // Delete associated uploaded file if it exists
+          if (memory.metadata?.storedFilename) {
+            const uploadFilePath = path.join(UPLOADS_DIR, memory.metadata.storedFilename);
+            try {
+              await fs.unlink(uploadFilePath);
+            } catch (e) {
+              // File might not exist, that's okay
+              console.log(`Could not delete upload file ${memory.metadata.storedFilename}:`, e.message);
+            }
+          }
+          
+          // Remove from memories array
+          memories.splice(memoryIndex, 1);
+          
+          // Save updated memories or delete file if empty
+          if (memories.length === 0) {
+            await fs.unlink(filePath);
+          } else {
+            await fs.writeFile(filePath, JSON.stringify(memories, null, 2));
+          }
+          
+          return true;
+        }
+      } catch (fileError) {
+        console.error(`Error deleting memory from file ${file}:`, fileError);
+      }
+    }
+  }
+  
+  return false;
+}
+
+// Delete a cluster and all its memories permanently
 router.delete('/:id', async (req, res) => {
   try {
-    const clusterId = req.params.id;
+    // Decode the cluster ID in case it's URL encoded
+    let clusterId = decodeURIComponent(req.params.id);
+    const MEMORIES_DIR = path.join(__dirname, '../data/memories');
+    
+    console.log(`[Delete Cluster] Attempting to delete cluster with ID: ${clusterId}`);
     
     // Handle merged/empty action clusters (these are dynamically generated)
+    // Extract the action from the cluster ID
+    let action = null;
+    const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
+    
+    // Try multiple methods to extract the action
     if (clusterId.startsWith('merged-') || clusterId.startsWith('empty-')) {
-      // Extract the action from the ID (e.g., "merged-keep-123456" -> "keep")
+      // Format: "merged-keep-1234567890" or "empty-keep-1234567890"
       const parts = clusterId.split('-');
-      const action = parts[1]; // The action is the second part
+      if (parts.length >= 2) {
+        action = parts[1].toLowerCase();
+        console.log(`[Delete Cluster] Extracted action "${action}" from cluster ID format`);
+      }
+    } else {
+      // Try to find action name in the cluster ID
+      const lowerId = clusterId.toLowerCase();
+      for (const validAction of validActions) {
+        if (lowerId.includes(validAction)) {
+          action = validAction;
+          console.log(`[Delete Cluster] Found action "${action}" in cluster ID`);
+          break;
+        }
+      }
+    }
+    
+    // Normalize action (handle 'forget' -> 'low_relevance')
+    if (action === 'forget') {
+      action = 'low_relevance';
+    }
+    
+    // Validate action
+    if (!action || !validActions.includes(action)) {
+      console.log(`[Delete Cluster] Could not extract valid action from cluster ID: ${clusterId}`);
+      // Try to find cluster in stored cluster files as fallback
+      action = null;
+    }
+    
+    // If we found an action, delete all memories with that action
+    if (action && ['keep', 'compress', 'low_relevance', 'delete'].includes(action)) {
+      
+      // Get all memories to find which ones belong to this action
+      let allMemories = [];
+      try {
+        const memoryFiles = await fs.readdir(MEMORIES_DIR);
+        for (const file of memoryFiles) {
+          if (file.endsWith('.json')) {
+            try {
+              const content = await fs.readFile(path.join(MEMORIES_DIR, file), 'utf8');
+              const memories = JSON.parse(content);
+              allMemories.push(...memories);
+            } catch (e) {
+              // Skip file
+            }
+          }
+        }
+      } catch (e) {
+        // Can't read memories directory
+      }
+      
+      // Find all memories with this action
+      const validActions = ['keep', 'compress', 'low_relevance', 'delete'];
+      const memoriesToDelete = allMemories.filter(memory => {
+        let memoryAction = memory.overrideAction || memory.predictedAction || memory.nemotronAnalysis?.predictedAction || 'keep';
+        if (memoryAction.toLowerCase() === 'forget') {
+          memoryAction = 'low_relevance';
+        }
+        return memoryAction.toLowerCase() === action.toLowerCase();
+      });
+      
+      // Delete all memories with this action
+      let deletedMemories = 0;
+      for (const memory of memoriesToDelete) {
+        const deleted = await deleteMemoryPermanently(memory.id);
+        if (deleted) {
+          deletedMemories++;
+        }
+      }
       
       // Delete all clusters that have this action
       const files = await fs.readdir(CLUSTERS_DIR);
-      let deletedCount = 0;
+      let deletedClusters = 0;
       
       for (const file of files) {
         if (file.endsWith('.json')) {
@@ -343,11 +461,11 @@ router.delete('/:id', async (req, res) => {
           // Remove all clusters with this action
           clusters = clusters.filter(c => {
             const clusterAction = (c.action || '').toLowerCase();
-            return clusterAction !== action;
+            return clusterAction !== action.toLowerCase();
           });
           
           if (clusters.length < initialLength) {
-            deletedCount += (initialLength - clusters.length);
+            deletedClusters += (initialLength - clusters.length);
             // If file is now empty, delete it, otherwise save updated clusters
             if (clusters.length === 0) {
               await fs.unlink(filePath);
@@ -360,13 +478,14 @@ router.delete('/:id', async (req, res) => {
       
       return res.json({ 
         success: true, 
-        message: `Deleted ${deletedCount} cluster(s) with action "${action}"` 
+        message: `Deleted ${deletedMemories} memory file(s) with action "${action}". The cluster will be automatically removed.` 
       });
     }
     
-    // Handle normal cluster deletion (for non-merged clusters)
+    // Handle normal cluster deletion (for non-merged clusters stored in files)
     const files = await fs.readdir(CLUSTERS_DIR);
     let clusterFound = false;
+    let memoryIdsToDelete = [];
     
     for (const file of files) {
       if (file.endsWith('.json')) {
@@ -377,6 +496,23 @@ router.delete('/:id', async (req, res) => {
         
         if (clusterIndex !== -1) {
           clusterFound = true;
+          const cluster = clusters[clusterIndex];
+          
+          // Get all memory IDs in this cluster
+          memoryIdsToDelete = cluster.memoryIds || cluster.memories || [];
+          if (!Array.isArray(memoryIdsToDelete)) {
+            memoryIdsToDelete = [];
+          }
+          
+          // Delete all memories in this cluster permanently
+          let deletedMemories = 0;
+          for (const memoryId of memoryIdsToDelete) {
+            const deleted = await deleteMemoryPermanently(memoryId);
+            if (deleted) {
+              deletedMemories++;
+            }
+          }
+          
           // Remove the cluster
           clusters.splice(clusterIndex, 1);
           
@@ -387,7 +523,10 @@ router.delete('/:id', async (req, res) => {
             await fs.writeFile(filePath, JSON.stringify(clusters, null, 2));
           }
           
-          return res.json({ success: true, message: 'Cluster deleted successfully' });
+          return res.json({ 
+            success: true, 
+            message: `Cluster deleted successfully. Permanently deleted ${deletedMemories} memory file(s).` 
+          });
         }
       }
     }

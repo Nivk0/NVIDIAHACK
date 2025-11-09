@@ -98,12 +98,13 @@ function MemoryGarden({ memories, clusters, timeHorizon, onMemoryClick, onDelete
                           className="delete-cluster-btn"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const confirmMsg = `Delete "${cluster.name}" cluster? This will remove the cluster grouping but keep all memories.`;
+                            const memoryCount = clusterMemories.length || cluster.size || 0;
+                            const confirmMsg = `Delete "${cluster.name}" cluster? This will PERMANENTLY DELETE all ${memoryCount} memory file(s) in this cluster. This action cannot be undone.`;
                             if (window.confirm(confirmMsg)) {
                               onDeleteCluster(cluster.id);
                             }
                           }}
-                          title="Delete this cluster"
+                          title="Delete this cluster and all its memories permanently"
                         >
                           🗑️
                         </button>

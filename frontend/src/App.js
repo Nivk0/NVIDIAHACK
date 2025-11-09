@@ -82,11 +82,13 @@ function App() {
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    // Fetch data when authenticated, or if not authenticated (for demo/mock data)
+    // This allows mock data to be visible even without authentication
+    if (!isLoading) {
       fetchMemories();
       fetchClusters();
     }
-  }, [isAuthenticated, fetchMemories, fetchClusters]);
+  }, [isAuthenticated, isLoading, fetchMemories, fetchClusters]);
 
   const handleUploadComplete = () => {
     // Fetch memories and clusters after upload completes
@@ -150,6 +152,8 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         console.log(data.message);
+        // Show success message with deletion count
+        alert(data.message || 'Cluster and all its memories deleted successfully.');
         fetchClusters();
         fetchMemories(); // Refresh to update cluster references
       } else {
