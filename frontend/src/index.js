@@ -89,7 +89,7 @@ root.render(
       authorizationParams={authorizationParams}
       cacheLocation="localstorage"
     >
-      <App />
+    <App />
     </Auth0Provider>
   </React.StrictMode>
 );

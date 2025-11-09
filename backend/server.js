@@ -18,7 +18,13 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://nvidiaai.netlify.app',
+    process.env.FRONTEND_URL // Allow custom frontend URL from env
+  ].filter(Boolean) // Remove undefined values
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -58,8 +64,9 @@ ensureDirectories()
     }
   })
   .finally(() => {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
   });
 
