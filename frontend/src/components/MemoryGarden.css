@@ -1,0 +1,146 @@
+.memory-garden {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.memory-garden h2 {
+  color: #2c3e50;
+  margin-bottom: 8px;
+}
+
+.garden-subtitle {
+  color: #7f8c8d;
+  margin-bottom: 24px;
+}
+
+.no-clusters {
+  text-align: center;
+  padding: 60px 20px;
+  color: #7f8c8d;
+}
+
+.garden-patches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.garden-patch {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 2px solid #ecf0f1;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.garden-patch:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.patch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.patch-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 18px;
+}
+
+.patch-size {
+  color: #7f8c8d;
+  font-size: 14px;
+}
+
+.patch-action-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.patch-action-badge[data-action="keep"] {
+  background: #d5f4e6;
+  color: #27ae60;
+}
+
+.patch-action-badge[data-action="compress"] {
+  background: #fef5e7;
+  color: #d68910;
+}
+
+.patch-action-badge[data-action="forget"] {
+  background: #fadbd8;
+  color: #c0392b;
+}
+
+.patch-memories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 60px;
+}
+
+.memory-tile {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, opacity 0.3s;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.memory-tile:hover {
+  transform: scale(1.1);
+  z-index: 10;
+  position: relative;
+}
+
+.memory-tile-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: white;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.memory-type-icon {
+  font-size: 16px;
+}
+
+.memory-relevance {
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.memory-image-overlay {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.memory-image-overlay .memory-relevance {
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  font-weight: 700;
+}
+
