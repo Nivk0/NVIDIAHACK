@@ -8,7 +8,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import UserProfile from './components/UserProfile';
 import AIMemorySearch from './components/AIMemorySearch';
 
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api';
 
 function App() {
   const [memories, setMemories] = useState([]);

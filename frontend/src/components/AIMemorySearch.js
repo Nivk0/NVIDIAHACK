@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './AIMemorySearch.css';
 
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api';
 
 function AIMemorySearch({ memories, onMemoryClick, onClose }) {
   const [query, setQuery] = useState('');

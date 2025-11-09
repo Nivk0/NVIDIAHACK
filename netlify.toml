@@ -1,0 +1,14 @@
+[build]
+  # Directory to change to before starting a build
+  base = "frontend"
+  # Directory that contains the deploy-ready HTML files and assets
+  publish = "build"
+  # Command to build your site
+  command = "npm install && npm run build"
+
+# Redirect all requests to index.html for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+

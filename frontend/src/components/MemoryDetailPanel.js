@@ -70,7 +70,7 @@ function MemoryDetailPanel({ memory, timeHorizon, onUpdate, onDelete, onClose })
       if (/^https?:\/\//i.test(memory.imageUrl)) {
         return memory.imageUrl;
       }
-      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:5001';
+      const apiBase = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'http://localhost:5001';
       return `${apiBase}${memory.imageUrl}`;
     }
 
