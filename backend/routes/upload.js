@@ -20,7 +20,7 @@ router.post('/', upload.array('files', 100), async (req, res) => {
     const jobId = uuidv4();
     const files = req.files || [];
     let textData = [];
-    let clientFileMetadata = {};
+    let clientFileMetadata = [];
     
     try {
       textData = req.body.textData ? JSON.parse(req.body.textData) : [];
@@ -32,14 +32,11 @@ router.post('/', upload.array('files', 100), async (req, res) => {
     try {
       const metadataPayload = req.body.fileMetadata ? JSON.parse(req.body.fileMetadata) : [];
       if (Array.isArray(metadataPayload)) {
-        metadataPayload.forEach(meta => {
-          if (meta?.originalname) {
-            clientFileMetadata[meta.originalname] = meta;
-          }
-        });
+        clientFileMetadata = metadataPayload;
       }
     } catch (metaError) {
       console.error('Error parsing fileMetadata:', metaError);
+      clientFileMetadata = [];
     }
     
     // Validate that we have at least some data
@@ -75,7 +72,7 @@ router.get('/status/:jobId', (req, res) => {
   res.json(job);
 });
 
-async function processData(jobId, files, textData, clientFileMetadata = {}) {
+async function processData(jobId, files, textData, clientFileMetadata = []) {
   const job = processingJobs.get(jobId);
   const scanner = new DataScanner();
   const predictor = new PredictionAgent();

@@ -7,11 +7,13 @@ const mammoth = require('mammoth');
 const imageSize = require('image-size');
 
 class DataScanner {
-  async scan(files, textData, clientMetadata = {}) {
+  async scan(files, textData, clientMetadata = []) {
     const scannedItems = [];
 
     // Process uploaded files
-    for (const file of files) {
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const clientMeta = clientMetadata[index] || {};
       try {
         const stats = await fs.stat(file.path);
         const storedFilename = path.basename(file.path);
@@ -23,7 +25,6 @@ class DataScanner {
           storedFilename,
           originalFilename: file.originalname
         };
-        const clientMeta = clientMetadata[file.originalname] || {};
 
         const extracted = await this.extractFileData(file, stats, baseMetadata, clientMeta, publicUrl);
         const createdAt = this.getCreatedAt(stats, clientMeta, extracted.metadata);
@@ -99,11 +100,11 @@ class DataScanner {
       case 'document':
         return await this.processDocument(filePath, title, detectedType, baseMetadata, clientMeta, publicUrl);
       case 'csv':
-        return await this.processCsv(filePath, title, baseMetadata, publicUrl);
+        return await this.processCsv(filePath, title, baseMetadata, publicUrl, clientMeta);
       case 'text':
-        return await this.processTextFile(filePath, title, baseMetadata, publicUrl);
+        return await this.processTextFile(filePath, title, baseMetadata, publicUrl, clientMeta);
       case 'email':
-        return await this.processEmailFile(filePath, title, baseMetadata, publicUrl);
+        return await this.processEmailFile(filePath, title, baseMetadata, publicUrl, clientMeta);
       default:
         return this.processUnknownFile(file, title, stats, detectedType, baseMetadata, clientMeta, publicUrl);
     }
@@ -154,12 +155,12 @@ class DataScanner {
     const sanitized = this.sanitizeText(text);
     const content = this.limitText(sanitized, 4000);
 
-    const combinedMeta = {
+    const combinedMeta = this.mergeClientMetadata({
       ...metadata,
       ...extraMeta,
       category: this.detectDocumentCategory(content),
       originalModifiedAt: clientMeta.lastModified ? new Date(clientMeta.lastModified).toISOString() : undefined
-    };
+    }, clientMeta);
 
     return {
       type: type,
@@ -171,7 +172,7 @@ class DataScanner {
     };
   }
 
-  async processCsv(filePath, title, metadata, publicUrl) {
+  async processCsv(filePath, title, metadata, publicUrl, clientMeta = {}) {
     let content = '';
     let header = [];
     let rows = 0;
@@ -196,21 +197,27 @@ class DataScanner {
       ? `CSV columns: ${cleanHeader.join(', ')}`
       : `CSV file (${rows} rows previewed)`;
 
+    const combinedMeta = this.mergeClientMetadata({
+      ...metadata,
+      columns: cleanHeader.length,
+      rows
+    }, {});
+
     return {
       type: 'document',
       title,
       summary: this.sanitizeText(summary),
       content: this.limitText(content, 4000),
-      metadata: {
+      metadata: this.mergeClientMetadata({
         ...metadata,
         columns: cleanHeader.length,
         rows
-      },
+      }, clientMeta),
       fileUrl: publicUrl
     };
   }
 
-  async processTextFile(filePath, title, metadata, publicUrl) {
+  async processTextFile(filePath, title, metadata, publicUrl, clientMeta = {}) {
     let content = '';
     try {
       content = await fs.readFile(filePath, 'utf8');
@@ -226,12 +233,12 @@ class DataScanner {
       title,
       summary,
       content: this.limitText(cleanContent, 4000),
-      metadata,
+      metadata: this.mergeClientMetadata(metadata, clientMeta),
       fileUrl: publicUrl
     };
   }
 
-  async processEmailFile(filePath, title, metadata, publicUrl) {
+  async processEmailFile(filePath, title, metadata, publicUrl, clientMeta = {}) {
     let content = '';
     let summary = `${title} (email)`;
     const emailMeta = { ...metadata };
@@ -257,7 +264,7 @@ class DataScanner {
       title,
       summary: this.sanitizeText(summary),
       content: this.limitText(content, 4000),
-      metadata: emailMeta,
+      metadata: this.mergeClientMetadata(emailMeta, clientMeta),
       fileUrl: publicUrl
     };
   }
@@ -279,12 +286,12 @@ class DataScanner {
       ? `${title} (${width}x${height})`
       : `${title} (image)`;
 
-    const imageMetadata = {
+    const imageMetadata = this.mergeClientMetadata({
       ...metadata,
       width,
       height,
       originalModifiedAt: clientMeta.lastModified ? new Date(clientMeta.lastModified).toISOString() : undefined
-    };
+    }, clientMeta);
 
     return {
       type,
@@ -304,11 +311,11 @@ class DataScanner {
       title,
       summary,
       content: summary,
-      metadata: {
+      metadata: this.mergeClientMetadata({
         ...metadata,
         note: 'Binary file – limited metadata available',
         originalModifiedAt: clientMeta.lastModified ? new Date(clientMeta.lastModified).toISOString() : undefined
-      },
+      }, clientMeta),
       fileUrl: publicUrl
     };
   }
@@ -376,6 +383,36 @@ class DataScanner {
       .replace(/^[^A-Za-z0-9]+/, '')
       .replace(/[^\S\r\n]+/g, ' ')
       .trim();
+  }
+
+  mergeClientMetadata(metadata, clientMeta = {}) {
+    if (!clientMeta) return metadata;
+    const result = { ...metadata };
+    const { relativePath, rootFolder, lastModified } = clientMeta;
+
+    if (relativePath) {
+      result.relativePath = relativePath;
+      const segments = relativePath.split(/[\\/]/).filter(Boolean);
+      if (segments.length > 1) {
+        result.parentFolder = segments.slice(0, -1).join('/');
+        result.rootFolder = result.rootFolder || segments[0];
+      } else if (segments.length === 1 && !result.parentFolder) {
+        result.parentFolder = null;
+      }
+    }
+
+    if (rootFolder && !result.rootFolder) {
+      result.rootFolder = rootFolder;
+    }
+
+    if (lastModified) {
+      const iso = new Date(lastModified).toISOString();
+      if (!result.originalModifiedAt) {
+        result.originalModifiedAt = iso;
+      }
+    }
+
+    return result;
   }
 }
 

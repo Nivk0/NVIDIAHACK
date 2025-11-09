@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import './UploadComponent.css';
 
 const API_BASE = 'http://localhost:5001/api';
@@ -10,9 +10,43 @@ function UploadComponent({ onComplete }) {
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
   const [status, setStatus] = useState('idle'); // idle, uploading, processing, completed
+  const [showPickerOptions, setShowPickerOptions] = useState(false);
+
+  const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
+
+  const buildFileKey = (file) => `${file.webkitRelativePath || file.name}:${file.size}:${file.lastModified}`;
+
+  const mergeFileLists = (existing, incoming) => {
+    const map = new Map();
+    existing.forEach(file => map.set(buildFileKey(file), file));
+    incoming.forEach(file => map.set(buildFileKey(file), file));
+    return Array.from(map.values());
+  };
+
+  const openPicker = (mode) => {
+    if (mode === 'folder' && folderInputRef.current) {
+      folderInputRef.current.click();
+    } else if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+    setShowPickerOptions(false);
+  };
 
   const handleFileChange = (e) => {
-    setFiles(Array.from(e.target.files));
+    const selected = Array.from(e.target.files || []);
+    setFiles(prev => mergeFileLists(prev, selected));
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  const handleFolderChange = (e) => {
+    const selected = Array.from(e.target.files || []);
+    setFiles(prev => mergeFileLists(prev, selected));
+    if (e.target) {
+      e.target.value = '';
+    }
   };
 
   const handleTextDataChange = (e) => {
@@ -29,19 +63,24 @@ function UploadComponent({ onComplete }) {
 
     try {
       const formData = new FormData();
-      const fileMetadata = [];
       files.forEach(file => {
         formData.append('files', file);
-        fileMetadata.push({
-          originalname: file.name,
-          lastModified: file.lastModified,
-          size: file.size,
-          type: file.type
-        });
       });
 
-      if (fileMetadata.length > 0) {
-        formData.append('fileMetadata', JSON.stringify(fileMetadata));
+      if (files.length > 0) {
+        const metadataList = files.map((file) => {
+          const relativePath = file.webkitRelativePath || null;
+          const segments = relativePath ? relativePath.split(/[\\/]/).filter(Boolean) : [];
+          return {
+            originalname: file.name,
+            relativePath,
+            rootFolder: segments.length > 1 ? segments[0] : null,
+            lastModified: file.lastModified || null,
+            size: file.size,
+            type: file.type || null
+          };
+        });
+        formData.append('fileMetadata', JSON.stringify(metadataList));
       }
 
       if (textData.trim()) {
@@ -127,21 +166,64 @@ function UploadComponent({ onComplete }) {
           <strong>🤖 AI-Powered Analysis:</strong> All memories will be analyzed using NVIDIA Nemotron AI to determine relevance, sentiment, and recommended actions.
         </div>
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+          disabled={status === 'processing' || status === 'uploading'}
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          onChange={handleFolderChange}
+          style={{ display: 'none' }}
+          disabled={status === 'processing' || status === 'uploading'}
+          {...{ webkitdirectory: '', directory: '' }}
+        />
+
         <div className="upload-section">
-          <label className="upload-label">
-            <span>Select Files</span>
-            <input
-              type="file"
-              multiple
-              onChange={handleFileChange}
-              disabled={status === 'processing' || status === 'uploading'}
-            />
-          </label>
+          <div className="upload-label">
+            <span>Choose files or entire folders</span>
+          </div>
+          <div className="button-row picker-row">
+            <div className="picker-wrapper">
+              <button
+                type="button"
+                className="upload-button secondary"
+                onClick={() => setShowPickerOptions((prev) => !prev)}
+                disabled={status === 'processing' || status === 'uploading'}
+              >
+                Select Files or Folders
+              </button>
+              {showPickerOptions && (
+                <div className="picker-menu">
+                  <button
+                    type="button"
+                    onClick={() => openPicker('file')}
+                    disabled={status === 'processing' || status === 'uploading'}
+                  >
+                    Choose Files
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openPicker('folder')}
+                    disabled={status === 'processing' || status === 'uploading'}
+                  >
+                    Choose Folder
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           {files.length > 0 && (
             <div className="file-list">
-              {files.map((file, index) => (
-                <div key={index} className="file-item">
-                  {file.name} ({(file.size / 1024).toFixed(2)} KB)
+              {files.map((file) => (
+                <div key={buildFileKey(file)} className="file-item">
+                  <span className="file-name">{file.webkitRelativePath || file.name}</span>
+                  <span className="file-size">{(file.size / 1024).toFixed(2)} KB</span>
                 </div>
               ))}
             </div>
