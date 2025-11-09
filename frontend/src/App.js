@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import './App.css';
 import UploadComponent from './components/UploadComponent';
 import MemoryGarden from './components/MemoryGarden';
@@ -7,10 +8,12 @@ import DataViewer from './components/DataViewer';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import UserProfile from './components/UserProfile';
 import AIMemorySearch from './components/AIMemorySearch';
+import Login from './components/Login';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api';
 
 function App() {
+  const { isAuthenticated, isLoading, user, getAccessTokenSilently, logout } = useAuth0();
   const [memories, setMemories] = useState([]);
   const [clusters, setClusters] = useState([]);
   const [selectedMemory, setSelectedMemory] = useState(null);
@@ -20,15 +23,38 @@ function App() {
   const [timeHorizon] = useState(0); // 0 = now, 12 = 1 year
   const [viewMode, setViewMode] = useState('garden'); // 'garden', 'data', 'analytics', or 'timeline'
 
+  // Helper function to get auth headers
+  const getAuthHeaders = async () => {
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+
+    if (isAuthenticated) {
+      try {
+        const token = await getAccessTokenSilently();
+        headers['Authorization'] = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Error getting access token:', error);
+      }
+    }
+
+    return headers;
+  };
+
   useEffect(() => {
-    fetchMemories();
-    fetchClusters();
-  }, []);
+    if (isAuthenticated) {
+      fetchMemories();
+      fetchClusters();
+    }
+  }, [isAuthenticated]);
 
   const fetchMemories = async () => {
     try {
       console.log('Fetching memories from:', `${API_BASE}/memories`);
-      const response = await fetch(`${API_BASE}/memories`);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/memories`, {
+        headers,
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -46,7 +72,10 @@ function App() {
   const fetchClusters = async () => {
     try {
       console.log('Fetching clusters from:', `${API_BASE}/clusters`);
-      const response = await fetch(`${API_BASE}/clusters`);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/clusters`, {
+        headers,
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -74,11 +103,10 @@ function App() {
 
   const handleMemoryUpdate = async (memoryId, action) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/memories/${memoryId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ action }),
       });
       if (response.ok) {
@@ -98,8 +126,10 @@ function App() {
 
   const handleDeleteMemory = async (memoryId) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/memories/${memoryId}`, {
         method: 'DELETE',
+        headers,
       });
       if (response.ok) {
         fetchMemories();
@@ -112,8 +142,10 @@ function App() {
 
   const handleDeleteCluster = async (clusterId) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/clusters/${clusterId}`, {
         method: 'DELETE',
+        headers,
       });
       if (response.ok) {
         const data = await response.json();
@@ -132,8 +164,10 @@ function App() {
 
   const handleRemoveMemoryFromCluster = async (clusterId, memoryId) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE}/clusters/${clusterId}/memories/${memoryId}`, {
         method: 'DELETE',
+        headers,
       });
       if (response.ok) {
         fetchClusters();
@@ -145,6 +179,22 @@ function App() {
     }
   };
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="App">
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <div>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <div className="App">
       <header className="App-header">
@@ -154,6 +204,11 @@ function App() {
             <p>Powered by <span style={{ color: '#76B900', fontWeight: '700' }}>NVIDIA Nemotron</span> • Intelligent Memory Management</p>
           </div>
           <div className="header-buttons">
+            {user && (
+              <div className="user-info" style={{ marginRight: '15px', color: '#fff', fontSize: '0.9rem' }}>
+                {user.name || user.email}
+              </div>
+            )}
             <button
               className="header-action-button"
               onClick={() => {
@@ -175,6 +230,13 @@ function App() {
               title="Edit User Profile"
             >
               ⚙️ Profile
+            </button>
+            <button
+              className="header-action-button"
+              onClick={() => logout({ returnTo: window.location.origin })}
+              title="Logout"
+            >
+              🚪 Logout
             </button>
           </div>
         </div>

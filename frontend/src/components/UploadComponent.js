@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import './UploadComponent.css';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api';
 
 function UploadComponent({ onComplete }) {
+  const { getAccessTokenSilently } = useAuth0();
   const [files, setFiles] = useState([]);
   const [textData, setTextData] = useState('');
   const [progress, setProgress] = useState(0);
@@ -92,8 +94,18 @@ function UploadComponent({ onComplete }) {
         formData.append('textData', JSON.stringify(textItems));
       }
 
+      // Get auth token for upload
+      let headers = {};
+      try {
+        const token = await getAccessTokenSilently();
+        headers['Authorization'] = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Error getting access token:', error);
+      }
+
       const response = await fetch(`${API_BASE}/upload`, {
         method: 'POST',
+        headers,
         body: formData,
       });
 
@@ -112,7 +124,18 @@ function UploadComponent({ onComplete }) {
   const pollProgress = async (jobId) => {
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE}/upload/status/${jobId}`);
+        // Get auth token for status check
+        let headers = {};
+        try {
+          const token = await getAccessTokenSilently();
+          headers['Authorization'] = `Bearer ${token}`;
+        } catch (error) {
+          console.error('Error getting access token:', error);
+        }
+
+        const response = await fetch(`${API_BASE}/upload/status/${jobId}`, {
+          headers,
+        });
         const data = await response.json();
 
         setProgress(data.progress || 0);

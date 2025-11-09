@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import './AIMemorySearch.css';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api';
 
 function AIMemorySearch({ memories, onMemoryClick, onClose }) {
+  const { getAccessTokenSilently } = useAuth0();
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState([]);
@@ -21,11 +23,17 @@ function AIMemorySearch({ memories, onMemoryClick, onClose }) {
     setSearchExplanation('');
 
     try {
+      let headers = { 'Content-Type': 'application/json' };
+      try {
+        const token = await getAccessTokenSilently();
+        headers['Authorization'] = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Error getting access token:', error);
+      }
+
       const response = await fetch(`${API_BASE}/search`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ query: query.trim() }),
       });
 

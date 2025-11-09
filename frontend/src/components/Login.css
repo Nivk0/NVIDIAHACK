@@ -1,0 +1,183 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #000000;
+  padding: 20px;
+}
+
+.login-content {
+  background: #1a1a1a;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  max-width: 450px;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* NVIDIA Header */
+.nvidia-header {
+  background: #000000;
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+}
+
+.nvidia-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nvidia-logo {
+  width: 32px;
+  height: 32px;
+  background: #76B900;
+  border-radius: 4px;
+  position: relative;
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+}
+
+.nvidia-logo::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background: #000000;
+  border-radius: 50%;
+}
+
+.nvidia-text {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.nvidia-ufm {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Login Form */
+.login-form {
+  padding: 40px 30px;
+  background: #1a1a1a;
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.form-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 2rem;
+  color: #ffffff;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.form-header .ai-text {
+  color: #76B900;
+  font-weight: 800;
+}
+
+.form-header p {
+  margin: 0;
+  color: #aaaaaa;
+  font-size: 0.9rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login-button {
+  width: 100%;
+  background: #76B900;
+  color: #ffffff;
+  border: none;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.login-button:hover {
+  background: #8dd400;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(118, 185, 0, 0.4);
+}
+
+.login-button:active {
+  transform: translateY(0);
+  background: #6ba000;
+}
+
+.login-button.secondary {
+  background: #76B900;
+}
+
+.login-button.secondary:hover {
+  background: #8dd400;
+}
+
+/* OR Separator */
+.or-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+}
+
+.or-line {
+  flex: 1;
+  height: 1px;
+  background: #333333;
+}
+
+.or-text {
+  color: #888888;
+  font-size: 14px;
+  font-weight: 400;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  text-transform: uppercase;
+}
+
+.loading-spinner {
+  padding: 40px;
+  text-align: center;
+  font-size: 1.2rem;
+  color: #76B900;
+  animation: pulse 1.5s ease-in-out infinite;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+

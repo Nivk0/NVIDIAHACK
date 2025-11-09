@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import './UserProfile.css';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api';
 
 function UserProfile({ onClose }) {
+  const { getAccessTokenSilently } = useAuth0();
   const [profile, setProfile] = useState({
     age: '',
     isStudent: false,
@@ -25,7 +27,17 @@ function UserProfile({ onClose }) {
   const fetchProfile = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/profile`);
+      let headers = { 'Content-Type': 'application/json' };
+      try {
+        const token = await getAccessTokenSilently();
+        headers['Authorization'] = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Error getting access token:', error);
+      }
+
+      const response = await fetch(`${API_BASE}/profile`, {
+        headers,
+      });
       if (response.ok) {
         const data = await response.json();
         if (data) {
@@ -68,11 +80,17 @@ function UserProfile({ onClose }) {
     setSaving(true);
     setMessage('');
     try {
+      let headers = { 'Content-Type': 'application/json' };
+      try {
+        const token = await getAccessTokenSilently();
+        headers['Authorization'] = `Bearer ${token}`;
+      } catch (error) {
+        console.error('Error getting access token:', error);
+      }
+
       const response = await fetch(`${API_BASE}/profile`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(profile),
       });
 
